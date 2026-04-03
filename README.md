@@ -12,7 +12,8 @@ The system is built using a **relational database design** and implemented with 
 
 The following diagram represents the database structure and relationships:
 
-![ERD Diagram](docs/erd.png)
+<img width="1601" height="976" alt="BRT_ERD_v3 drawio (2)" src="https://github.com/user-attachments/assets/f4799f1e-91f3-4069-b01a-da2a7e4b6ceb" />
+
 
 ---
 

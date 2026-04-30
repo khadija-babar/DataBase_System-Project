@@ -345,7 +345,7 @@ INSERT INTO Admin (name, email, password) VALUES
 ('BRT Admin', 'admin@brt.local', 'admin123');
 
 INSERT INTO Passenger (name, email, phone_number, password, card_balance) VALUES
-('demo', 'demo@brt.local', '03000000000', 'scrypt:32768:8:1$cWhgSlthGQxkFuLb$23a41c7967bcd94c77f48efb81c8f978284f09aad132b380276a393513b0960f200a0d6d07c0cf6301e556843b135c7dd7a4f0622f9fd975a7f44ec285509e6a', 500.0);
+('demo', 'demo@brt.local', '03000000000', 'scrypt:32768:8:1$G0z0FIxqsFIuC5Tw$eb21c0ca7d6527160b8da010966f0ed432709c3bef9ac702f83774a3eb1a4228c9edb846dd48ae49072c31bde7d4ceae5e781952bd0d8c7a7400a12723f02ca6', 500.0);
 
 INSERT INTO Driver (name, phone_number, license_number, status) VALUES
 ('Aftab Khan', '03001110001', 'BRT-PWR-001', 'active'),

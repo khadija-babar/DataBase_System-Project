@@ -4,7 +4,7 @@
 
 This project is a **Bus Management System** designed to efficiently manage transportation operations including passengers, ticketing, scheduling, and administration.
 
-The system is built using a **relational database design** and implemented with **SQLite (DDL)**.
+The system is built using a **relational database design** and implemented with **SQLite, Flask, HTML, CSS, and JavaScript**. The database is the main focus: the route planner, fare calculation, capacity cards, account balance, and tickets all read from or write to SQLite.
 
 ---
 
@@ -20,7 +20,9 @@ The following diagram represents the database structure and relationships:
 ## ⚙️ Technologies Used
 
 * **Database:** SQLite
-* **Language:** SQL (DDL)
+* **Backend:** Flask
+* **Frontend:** HTML, CSS, JavaScript
+* **Language:** SQL (DDL, DML, DQL)
 * **Design:** ERD (Entity-Relationship Diagram)
 
 ---
@@ -44,12 +46,12 @@ The system consists of the following core entities:
 
 ---
 
-## 🧾 DDL Script
+## 🧾 SQL Script
 
 The database schema is implemented in the following file:
 
-```id="d9x5hg"
-/database/group13.sql
+```text
+group13.sql
 ```
 
 This file includes:
@@ -57,17 +59,21 @@ This file includes:
 * Table creation statements
 * Primary and foreign key constraints
 * Status fields and relationships
+* DML seed data for buses, drivers, routes, stations, schedules, recharge, and a demo passenger
+* DQL examples for route listing, direct-trip fare lookup, and live bus occupancy
 
 ---
 
 ## 📁 Project Structure
 
-```id="m4k7fa"
+```text
 .
-├── docs/
-│   └── erd.png
-├── database/
-│   └── group13.sql
+├── app.py
+├── dashboard.html
+├── group13.sql
+├── login.html
+├── signup.html
+├── requirements.txt
 └── README.md
 ```
 
@@ -82,13 +88,40 @@ git clone https://github.com/your-username/your-repo-name.git
 cd your-repo-name
 ```
 
-### 2. Execute the SQL File
+### 2. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Run the Flask App
+
+```bash
+python3 app.py
+```
+
+Open:
+
+```text
+http://127.0.0.1:5000
+```
+
+Demo login:
+
+```text
+Username: demo
+Password: demo123
+```
+
+### 4. Execute the SQL File Manually
 
 Run the DDL script using SQLite:
 
-```bash id="q7d7a3"
-sqlite3 database.db < database/group13.sql
+```bash
+sqlite3 database.db < group13.sql
 ```
+
+The app also initializes this database automatically when `database.db` is missing or does not contain the current route schema.
 
 ---
 

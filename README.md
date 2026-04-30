@@ -1,12 +1,7 @@
-# 🚌 Bus Management System
-
-## 📌 Overview
-
 This project is a **Bus Management System** designed to efficiently manage transportation operations including passengers, ticketing, scheduling, and administration.
 
 The system is built using a **relational database design** and implemented with **SQLite (DDL)**.
-
----
+The system is built using a **relational database design** and implemented with **SQLite, Flask, HTML, CSS, and JavaScript**. The database is the main focus: the route planner, fare calculation, capacity cards, account balance, and tickets all read from or write to SQLite.
 
 ## 📊 ERD Diagram
 
@@ -110,4 +105,4 @@ sqlite3 database.db < database/group13.sql
 
 ## 📄 License
 
-This project is developed for academic purposes.
+This project is developed for academic purpose

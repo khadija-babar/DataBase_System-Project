@@ -10,6 +10,129 @@ DATABASE_PATH = os.path.join(BASE_DIR, 'database.db')
 app = Flask(__name__, template_folder=BASE_DIR)
 app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
 
+ERD_TABLES = [
+    {
+        'name': 'Passenger',
+        'purpose': 'Passenger accounts, login details, phone number, and card balance.',
+        'sample_sql': '''
+            SELECT passenger_id, name, email, phone_number, card_balance, created_at
+            FROM Passenger
+            ORDER BY passenger_id
+            LIMIT 5
+        '''
+    },
+    {
+        'name': 'Admin',
+        'purpose': 'System administrators who can manage complaints and notifications.',
+        'sample_sql': '''
+            SELECT admin_id, name, email, created_at
+            FROM Admin
+            ORDER BY admin_id
+            LIMIT 5
+        '''
+    },
+    {
+        'name': 'Bus',
+        'purpose': 'Bus fleet records, type, status, capacity, and current passengers.',
+        'sample_sql': '''
+            SELECT bus_id, bus_number, bus_type, capacity, current_passengers, status
+            FROM Bus
+            ORDER BY bus_id
+            LIMIT 5
+        '''
+    },
+    {
+        'name': 'Driver',
+        'purpose': 'Driver information, phone number, license number, and work status.',
+        'sample_sql': '''
+            SELECT driver_id, name, phone_number, license_number, status
+            FROM Driver
+            ORDER BY driver_id
+            LIMIT 5
+        '''
+    },
+    {
+        'name': 'Route',
+        'purpose': 'BRT route master data including route code, platform, fare, and frequency.',
+        'sample_sql': '''
+            SELECT route_id, route_code, route_name, route_type, total_stops, platform, fare_per_stop
+            FROM Route
+            ORDER BY route_code
+            LIMIT 5
+        '''
+    },
+    {
+        'name': 'Station',
+        'purpose': 'Station names and location areas used by all routes.',
+        'sample_sql': '''
+            SELECT station_id, station_name, location_area
+            FROM Station
+            ORDER BY station_id
+            LIMIT 5
+        '''
+    },
+    {
+        'name': 'Route_Station',
+        'purpose': 'Junction table that connects each route to its stations in stop order.',
+        'sample_sql': '''
+            SELECT route_station_id, route_id, station_id, stop_order
+            FROM Route_Station
+            ORDER BY route_id, stop_order
+            LIMIT 5
+        '''
+    },
+    {
+        'name': 'Schedule',
+        'purpose': 'Schedules that assign buses and drivers to routes with departure times.',
+        'sample_sql': '''
+            SELECT schedule_id, bus_id, route_id, driver_id, departure_time, arrival_time, status
+            FROM Schedule
+            ORDER BY schedule_id
+            LIMIT 5
+        '''
+    },
+    {
+        'name': 'Ticket',
+        'purpose': 'Passenger tickets, fare paid, journey stations, and status.',
+        'sample_sql': '''
+            SELECT ticket_id, passenger_id, schedule_id, fixed_fare, start_station, end_station, status
+            FROM Ticket
+            ORDER BY ticket_id DESC
+            LIMIT 5
+        '''
+    },
+    {
+        'name': 'Recharge',
+        'purpose': 'Passenger card top-up transactions and payment status.',
+        'sample_sql': '''
+            SELECT recharge_id, passenger_id, amount, payment_method, status, recharge_time
+            FROM Recharge
+            ORDER BY recharge_id DESC
+            LIMIT 5
+        '''
+    },
+    {
+        'name': 'Complaint',
+        'purpose': 'Passenger complaints, assigned admin, response, and resolution status.',
+        'sample_sql': '''
+            SELECT complaint_id, passenger_id, admin_id, complaint_text, status, response_text
+            FROM Complaint
+            ORDER BY complaint_id DESC
+            LIMIT 5
+        '''
+    },
+    {
+        'name': 'Notification',
+        'purpose': 'Passenger notifications created by system actions such as ticket booking.',
+        'sample_sql': '''
+            SELECT notification_id, admin_id, passenger_id, message, type, is_read, created_at
+            FROM Notification
+            ORDER BY notification_id DESC
+            LIMIT 5
+        '''
+    },
+]
+
 
 def get_db():
     conn = sqlite3.connect(DATABASE_PATH)
@@ -364,6 +487,176 @@ def api_tickets():
         (session['passenger_id'],)
     )
     return jsonify(tickets)
+
+
+DATABASE_TABLES = [
+    {
+        'name': 'Passenger',
+        'description': 'Passengers who use the BRT system, including login, phone, and card balance.',
+        'columns': ['passenger_id', 'name', 'email', 'phone_number', 'card_balance', 'created_at'],
+        'sample_query': '''
+            SELECT passenger_id, name, email, phone_number, card_balance, created_at
+            FROM Passenger
+            ORDER BY passenger_id
+            LIMIT 8
+        '''
+    },
+    {
+        'name': 'Admin',
+        'description': 'System administrators who can manage complaints and notifications.',
+        'columns': ['admin_id', 'name', 'email', 'created_at'],
+        'sample_query': '''
+            SELECT admin_id, name, email, created_at
+            FROM Admin
+            ORDER BY admin_id
+            LIMIT 8
+        '''
+    },
+    {
+        'name': 'Bus',
+        'description': 'Buses with type, status, capacity, and current passenger load.',
+        'columns': ['bus_id', 'bus_number', 'bus_type', 'capacity', 'current_passengers', 'status'],
+        'sample_query': '''
+            SELECT bus_id, bus_number, bus_type, capacity, current_passengers, status
+            FROM Bus
+            ORDER BY bus_id
+            LIMIT 8
+        '''
+    },
+    {
+        'name': 'Driver',
+        'description': 'Drivers assigned to schedules.',
+        'columns': ['driver_id', 'name', 'phone_number', 'license_number', 'status'],
+        'sample_query': '''
+            SELECT driver_id, name, phone_number, license_number, status
+            FROM Driver
+            ORDER BY driver_id
+            LIMIT 8
+        '''
+    },
+    {
+        'name': 'Route',
+        'description': 'Routes from the real station data, including platform, headway, and fare rule.',
+        'columns': ['route_id', 'route_code', 'route_name', 'route_type', 'total_stops', 'platform', 'fare_per_stop'],
+        'sample_query': '''
+            SELECT route_id, route_code, route_name, route_type, total_stops, platform, fare_per_stop
+            FROM Route
+            ORDER BY route_code
+            LIMIT 8
+        '''
+    },
+    {
+        'name': 'Station',
+        'description': 'Unique BRT station names used by all routes.',
+        'columns': ['station_id', 'station_name', 'location_area', 'created_at'],
+        'sample_query': '''
+            SELECT station_id, station_name, location_area, created_at
+            FROM Station
+            ORDER BY station_name
+            LIMIT 8
+        '''
+    },
+    {
+        'name': 'Route_Station',
+        'description': 'Junction table that stores route-to-station relationships and stop order.',
+        'columns': ['route_station_id', 'route_code', 'station_name', 'stop_order'],
+        'sample_query': '''
+            SELECT rs.route_station_id, r.route_code, st.station_name, rs.stop_order
+            FROM Route_Station rs
+            JOIN Route r ON r.route_id = rs.route_id
+            JOIN Station st ON st.station_id = rs.station_id
+            ORDER BY r.route_code, rs.stop_order
+            LIMIT 8
+        '''
+    },
+    {
+        'name': 'Schedule',
+        'description': 'Schedules connect a bus, driver, and route with timing and operating days.',
+        'columns': ['schedule_id', 'bus_number', 'route_code', 'driver_name', 'departure_time', 'arrival_time', 'status'],
+        'sample_query': '''
+            SELECT s.schedule_id, b.bus_number, r.route_code, d.name AS driver_name,
+                   s.departure_time, s.arrival_time, s.status
+            FROM Schedule s
+            JOIN Bus b ON b.bus_id = s.bus_id
+            JOIN Route r ON r.route_id = s.route_id
+            JOIN Driver d ON d.driver_id = s.driver_id
+            ORDER BY s.schedule_id
+            LIMIT 8
+        '''
+    },
+    {
+        'name': 'Ticket',
+        'description': 'Tickets bought by passengers for a scheduled route.',
+        'columns': ['ticket_id', 'passenger_name', 'route_code', 'fixed_fare', 'start_station', 'end_station', 'status'],
+        'sample_query': '''
+            SELECT t.ticket_id, p.name AS passenger_name, r.route_code, t.fixed_fare,
+                   t.start_station, t.end_station, t.status
+            FROM Ticket t
+            JOIN Passenger p ON p.passenger_id = t.passenger_id
+            LEFT JOIN Schedule s ON s.schedule_id = t.schedule_id
+            LEFT JOIN Route r ON r.route_id = s.route_id
+            ORDER BY t.ticket_id DESC
+            LIMIT 8
+        '''
+    },
+    {
+        'name': 'Recharge',
+        'description': 'Passenger card top-up transactions.',
+        'columns': ['recharge_id', 'passenger_name', 'amount', 'payment_method', 'status', 'recharge_time'],
+        'sample_query': '''
+            SELECT r.recharge_id, p.name AS passenger_name, r.amount, r.payment_method,
+                   r.status, r.recharge_time
+            FROM Recharge r
+            JOIN Passenger p ON p.passenger_id = r.passenger_id
+            ORDER BY r.recharge_id DESC
+            LIMIT 8
+        '''
+    },
+    {
+        'name': 'Complaint',
+        'description': 'Passenger complaints and admin responses.',
+        'columns': ['complaint_id', 'passenger_name', 'assigned_admin', 'complaint_text', 'status'],
+        'sample_query': '''
+            SELECT c.complaint_id, p.name AS passenger_name, a.name AS assigned_admin,
+                   c.complaint_text, c.status
+            FROM Complaint c
+            JOIN Passenger p ON p.passenger_id = c.passenger_id
+            LEFT JOIN Admin a ON a.admin_id = c.admin_id
+            ORDER BY c.complaint_id DESC
+            LIMIT 8
+        '''
+    },
+    {
+        'name': 'Notification',
+        'description': 'Messages sent to passengers by the system or admin.',
+        'columns': ['notification_id', 'passenger_name', 'message', 'type', 'is_read', 'created_at'],
+        'sample_query': '''
+            SELECT n.notification_id, p.name AS passenger_name, n.message,
+                   n.type, n.is_read, n.created_at
+            FROM Notification n
+            JOIN Passenger p ON p.passenger_id = n.passenger_id
+            ORDER BY n.notification_id DESC
+            LIMIT 8
+        '''
+    }
+]
+
+
+@app.get('/api/database')
+@login_required
+def api_database():
+    tables = []
+    for table in DATABASE_TABLES:
+        count_row = query_one(f'SELECT COUNT(*) AS total FROM {table["name"]}')
+        rows = query_all(table['sample_query'])
+        tables.append({
+            'name': table['name'],
+            'description': table['description'],
+            'columns': table['columns'],
+            'row_count': count_row['total'],
+            'rows': rows,
+        })
+    return jsonify({'tables': tables})
 
 @app.route('/logout')
 def logout():

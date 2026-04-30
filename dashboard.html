@@ -213,6 +213,24 @@
         .helper-message { color: #666; padding: 12px; text-align: center; }
         .book-btn { margin-top: 20px; background: var(--accent-teal); }
         .book-btn:hover { background: #008a7a; }
+        .database-page { max-width: 1200px; }
+        .database-intro { padding: 30px; margin-bottom: 25px; color: #333; }
+        .database-intro h2 { color: var(--primary-green); margin-bottom: 12px; }
+        .database-intro p { line-height: 1.7; color: #555; }
+        .erd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 15px; margin-top: 20px; }
+        .erd-card { background: #f4faf8; border-left: 4px solid var(--accent-teal); border-radius: 12px; padding: 15px; }
+        .erd-card strong { display: block; color: var(--primary-green); font-size: 16px; margin-bottom: 5px; }
+        .erd-card span { color: #666; font-size: 13px; }
+        .table-section { padding: 24px; margin-bottom: 25px; color: #333; }
+        .table-section h3 { color: var(--primary-green); display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+        .table-section p { color: #666; margin-bottom: 15px; }
+        .row-count { background: var(--accent-teal); color: white; border-radius: 20px; padding: 5px 12px; font-size: 12px; white-space: nowrap; }
+        .table-wrapper { overflow-x: auto; border-radius: 12px; border: 1px solid #e1ece8; }
+        .data-table { width: 100%; border-collapse: collapse; background: white; min-width: 680px; }
+        .data-table th { background: var(--primary-green); color: white; padding: 11px; text-align: left; font-size: 13px; }
+        .data-table td { padding: 10px 11px; border-bottom: 1px solid #eef3f1; color: #333; font-size: 13px; vertical-align: top; }
+        .data-table tr:nth-child(even) td { background: #f8fbfa; }
+        .schema-tag { display: inline-block; background: #e8f5e9; color: #2e7d32; border-radius: 999px; padding: 3px 8px; margin: 2px; font-size: 11px; font-weight: 600; }
         footer { background: rgba(11, 54, 24, 0.9); color: white; text-align: center; padding: 20px; margin-top: 60px; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -267,6 +285,7 @@
                 <li><button class="active" onclick="showPage('home')"><i class="fas fa-home"></i> Home</button></li>
                 <li><button onclick="showPage('trip')"><i class="fas fa-route"></i> Trip Planner</button></li>
                 <li><button onclick="showPage('capacity')"><i class="fas fa-bus"></i> Bus Capacity</button></li>
+                <li><button onclick="showPage('database')"><i class="fas fa-table"></i> ERD Database</button></li>
                 <li class="nav-user">
                     <i class="fas fa-user"></i> {{ username }}
                 </li>
@@ -406,6 +425,21 @@
         <div class="capacity-container" id="capacityContainer"></div>
     </div>
 
+    <!-- ERD Database Page -->
+    <div id="databasePage" class="page database-page">
+        <div class="glass-card database-intro">
+            <h2><i class="fas fa-database"></i> ERD Database Tables</h2>
+            <p>
+                This final section shows the project database according to the ERD tables:
+                Passenger, Admin, Bus, Driver, Route, Station, Route_Station, Schedule,
+                Ticket, Recharge, Complaint, and Notification. The rows below come directly
+                from SQLite through DQL SELECT queries.
+            </p>
+            <div id="erdSummary" class="erd-grid"></div>
+        </div>
+        <div id="databaseTables"></div>
+    </div>
+
     <footer>
         <p>&copy; 2024 BRT Peshawar | @BRT Peshawar</p>
     </footer>
@@ -450,6 +484,7 @@
             event.target.closest('button')?.classList.add('active');
             document.getElementById('navLinks').classList.remove('show');
             if (pageName === 'capacity') updateBusCapacity();
+            if (pageName === 'database') loadDatabaseTables();
             if (pageName !== 'trip') resetTripPlanner();
         }
 
@@ -604,8 +639,70 @@
             }).join('');
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function renderTableSection(table) {
+            const headers = table.columns
+                .map(column => `<th>${escapeHtml(column)}</th>`)
+                .join('');
+            const rows = table.rows.length
+                ? table.rows.map(row => `
+                    <tr>
+                        ${table.columns.map(column => `<td>${escapeHtml(row[column]) || '-'}</td>`).join('')}
+                    </tr>
+                `).join('')
+                : `<tr><td colspan="${table.columns.length}">No records yet</td></tr>`;
+
+            return `
+                <section class="glass-card table-section">
+                    <h3>
+                        <span><i class="fas fa-table"></i> ${escapeHtml(table.name)}</span>
+                        <span class="row-count">${table.row_count} rows</span>
+                    </h3>
+                    <p>${escapeHtml(table.description)}</p>
+                    <div class="schema-columns">
+                        ${table.columns.map(column => `<span class="schema-tag">${escapeHtml(column)}</span>`).join('')}
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead><tr>${headers}</tr></thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                </section>
+            `;
+        }
+
+        async function loadDatabaseTables() {
+            const summaryContainer = document.getElementById('erdSummary');
+            const tablesContainer = document.getElementById('databaseTables');
+            summaryContainer.innerHTML = '<div class="helper-message">Loading ERD summary...</div>';
+            tablesContainer.innerHTML = '<div class="helper-message">Loading database tables...</div>';
+
+            try {
+                const data = await apiFetch('/api/database');
+                summaryContainer.innerHTML = data.tables.map(table => `
+                    <div class="erd-card">
+                        <strong>${escapeHtml(table.name)}</strong>
+                        <span>${table.row_count} rows | ${table.columns.length} displayed columns</span>
+                    </div>
+                `).join('');
+                tablesContainer.innerHTML = data.tables.map(renderTableSection).join('');
+            } catch (error) {
+                summaryContainer.innerHTML = '';
+                tablesContainer.innerHTML = `<div class="glass-card table-section">${escapeHtml(error.message)}</div>`;
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
-            initializeApp().catch(error => alert(error.message));
+            initializeApp().then(loadDatabaseTables).catch(error => alert(error.message));
         });
         document.addEventListener('click', function(e) {
             const nav = document.querySelector('.navbar');

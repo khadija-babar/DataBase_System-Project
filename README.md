@@ -86,7 +86,6 @@ sqlite3 database.db < database/group13.sql
 ```
 
 ---
-
 ## 👥 Contributors
 
 * khadija babar

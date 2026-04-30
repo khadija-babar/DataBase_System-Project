@@ -64,6 +64,7 @@ CREATE TABLE Driver (
     name            TEXT NOT NULL,
     phone_number    TEXT,
     license_number  TEXT UNIQUE NOT NULL,
+    password        TEXT NOT NULL,
     status          TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive', 'on_leave')),
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -342,22 +343,22 @@ GROUP BY p.passenger_id, p.name, p.card_balance;
 -- DML SEED DATA
 -- Demo users and operational records make the frontend usable immediately.
 INSERT INTO Admin (name, email, password) VALUES
-('BRT Admin', 'admin@brt.local', 'admin123');
+('BRT Admin', 'admin@brt.local', 'scrypt:32768:8:1$Gx7a7Ay94xR8GQQg$c0e5949f7039628d440006eaf3b9740b6048642a10ad0783ad77ed696fe33dc68e52c411274d402d192c60e8de6c22797295376461466f815651d7ec75a33b54');
 
 INSERT INTO Passenger (name, email, phone_number, password, card_balance) VALUES
 ('demo', 'demo@brt.local', '03000000000', 'scrypt:32768:8:1$G0z0FIxqsFIuC5Tw$eb21c0ca7d6527160b8da010966f0ed432709c3bef9ac702f83774a3eb1a4228c9edb846dd48ae49072c31bde7d4ceae5e781952bd0d8c7a7400a12723f02ca6', 500.0);
 
-INSERT INTO Driver (name, phone_number, license_number, status) VALUES
-('Aftab Khan', '03001110001', 'BRT-PWR-001', 'active'),
-('Bilal Ahmad', '03001110002', 'BRT-PWR-002', 'active'),
-('Haris Khan', '03001110003', 'BRT-PWR-003', 'active'),
-('Imran Ali', '03001110004', 'BRT-PWR-004', 'active'),
-('Kamran Shah', '03001110005', 'BRT-PWR-005', 'active'),
-('Noman Yousaf', '03001110006', 'BRT-PWR-006', 'active'),
-('Sajid Iqbal', '03001110007', 'BRT-PWR-007', 'active'),
-('Tariq Mehmood', '03001110008', 'BRT-PWR-008', 'active'),
-('Usman Gul', '03001110009', 'BRT-PWR-009', 'active'),
-('Zahid Afridi', '03001110010', 'BRT-PWR-010', 'active');
+INSERT INTO Driver (name, phone_number, license_number, password, status) VALUES
+('Aftab Khan', '03001110001', 'BRT-PWR-001', 'scrypt:32768:8:1$TUW8UDJyo9k29AXF$411fb81197d8c6ffaf8bd1490a1879891f05795abee71ad36c94ae7b3d1332b6d60bdffbf409375441fe95ba55bd6badcc67983ef8f89b6b62d3676a8f73eb81', 'active'),
+('Bilal Ahmad', '03001110002', 'BRT-PWR-002', 'scrypt:32768:8:1$lCOOczlQ9D3Pfx9r$0111a181e0a6d12b2b68ea82ffe6658ab878e63ce931566dd94d5f30e72ee2ed59533d118b3c34a12035e6b10973e995b55ec55429715fc11a4767d58db93a97', 'active'),
+('Haris Khan', '03001110003', 'BRT-PWR-003', 'scrypt:32768:8:1$TUW8UDJyo9k29AXF$411fb81197d8c6ffaf8bd1490a1879891f05795abee71ad36c94ae7b3d1332b6d60bdffbf409375441fe95ba55bd6badcc67983ef8f89b6b62d3676a8f73eb81', 'active'),
+('Imran Ali', '03001110004', 'BRT-PWR-004', 'scrypt:32768:8:1$TUW8UDJyo9k29AXF$411fb81197d8c6ffaf8bd1490a1879891f05795abee71ad36c94ae7b3d1332b6d60bdffbf409375441fe95ba55bd6badcc67983ef8f89b6b62d3676a8f73eb81', 'active'),
+('Kamran Shah', '03001110005', 'BRT-PWR-005', 'scrypt:32768:8:1$TUW8UDJyo9k29AXF$411fb81197d8c6ffaf8bd1490a1879891f05795abee71ad36c94ae7b3d1332b6d60bdffbf409375441fe95ba55bd6badcc67983ef8f89b6b62d3676a8f73eb81', 'active'),
+('Noman Yousaf', '03001110006', 'BRT-PWR-006', 'scrypt:32768:8:1$TUW8UDJyo9k29AXF$411fb81197d8c6ffaf8bd1490a1879891f05795abee71ad36c94ae7b3d1332b6d60bdffbf409375441fe95ba55bd6badcc67983ef8f89b6b62d3676a8f73eb81', 'active'),
+('Sajid Iqbal', '03001110007', 'BRT-PWR-007', 'scrypt:32768:8:1$TUW8UDJyo9k29AXF$411fb81197d8c6ffaf8bd1490a1879891f05795abee71ad36c94ae7b3d1332b6d60bdffbf409375441fe95ba55bd6badcc67983ef8f89b6b62d3676a8f73eb81', 'active'),
+('Tariq Mehmood', '03001110008', 'BRT-PWR-008', 'scrypt:32768:8:1$TUW8UDJyo9k29AXF$411fb81197d8c6ffaf8bd1490a1879891f05795abee71ad36c94ae7b3d1332b6d60bdffbf409375441fe95ba55bd6badcc67983ef8f89b6b62d3676a8f73eb81', 'active'),
+('Usman Gul', '03001110009', 'BRT-PWR-009', 'scrypt:32768:8:1$TUW8UDJyo9k29AXF$411fb81197d8c6ffaf8bd1490a1879891f05795abee71ad36c94ae7b3d1332b6d60bdffbf409375441fe95ba55bd6badcc67983ef8f89b6b62d3676a8f73eb81', 'active'),
+('Zahid Afridi', '03001110010', 'BRT-PWR-010', 'scrypt:32768:8:1$TUW8UDJyo9k29AXF$411fb81197d8c6ffaf8bd1490a1879891f05795abee71ad36c94ae7b3d1332b6d60bdffbf409375441fe95ba55bd6badcc67983ef8f89b6b62d3676a8f73eb81', 'active');
 
 INSERT INTO Bus (bus_number, bus_type, capacity, current_passengers, status) VALUES
 ('B-001', 'express', 80, 36, 'active'),

@@ -1,8 +1,9 @@
 import os
 import sqlite3
-from flask import Flask, jsonify, render_template, request, redirect, url_for, flash, session
-from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
+
+from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, 'database.db')
@@ -181,32 +182,100 @@ def initialize_database():
         conn.commit()
 
 
+def verify_password(stored_password, submitted_password):
+    if stored_password and stored_password.startswith(('scrypt:', 'pbkdf2:')):
+        return check_password_hash(stored_password, submitted_password)
+    return stored_password == submitted_password
+
+
 def current_passenger():
-    if 'passenger_id' not in session:
+    if session.get('role') != 'passenger':
         return None
     return query_one(
         'SELECT passenger_id, name, email, phone_number, card_balance FROM Passenger WHERE passenger_id = ?',
-        (session['passenger_id'],)
+        (session.get('user_id'),)
     )
 
-# Login required decorator
+
+def current_driver():
+    if session.get('role') != 'driver':
+        return None
+    return query_one(
+        '''
+        SELECT driver_id, name, phone_number, license_number, status
+        FROM Driver
+        WHERE driver_id = ?
+        ''',
+        (session.get('user_id'),)
+    )
+
+
+def current_admin():
+    if session.get('role') != 'admin':
+        return None
+    return query_one(
+        'SELECT admin_id, name, email FROM Admin WHERE admin_id = ?',
+        (session.get('user_id'),)
+    )
+
+
+def role_required(role):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if session.get('role') != role or 'user_id' not in session:
+                flash(f'Please login as {role} to continue', 'error')
+                return redirect(url_for(f'{role}_login'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+def api_role_required(role):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if session.get('role') != role or 'user_id' not in session:
+                return jsonify({'error': f'{role.title()} login required'}), 401
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'passenger_id' not in session:
+        if 'user_id' not in session:
             flash('Please login to access this page', 'error')
-            return redirect(url_for('login'))
+            return redirect(url_for('role_select'))
         return f(*args, **kwargs)
     return decorated_function
+
+
+def set_session(role, user_id, name):
+    session.clear()
+    session['role'] = role
+    session['user_id'] = user_id
+    session['username'] = name
 
 # Routes
 @app.route('/')
 def index():
-    if 'passenger_id' in session:
-        return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
+    role = session.get('role')
+    if role == 'admin':
+        return redirect(url_for('admin_dashboard'))
+    if role == 'driver':
+        return redirect(url_for('driver_dashboard'))
+    if role == 'passenger':
+        return redirect(url_for('passenger_dashboard'))
+    return redirect(url_for('role_select'))
 
-@app.route('/signup', methods=['GET', 'POST'])
+
+@app.route('/select-role')
+def role_select():
+    return render_template('index.html')
+
+@app.route('/passenger/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
@@ -218,15 +287,15 @@ def signup():
         # Validation
         if not username or not email or not password:
             flash('All fields are required', 'error')
-            return render_template('signup.html')
+            return render_template('passenger_signup.html')
         
         if password != confirm_password:
             flash('Passwords do not match', 'error')
-            return render_template('signup.html')
+            return render_template('passenger_signup.html')
         
         if len(password) < 6:
             flash('Password must be at least 6 characters', 'error')
-            return render_template('signup.html')
+            return render_template('passenger_signup.html')
         
         existing_user = query_one(
             'SELECT passenger_id FROM Passenger WHERE lower(name) = lower(?) OR lower(email) = lower(?)',
@@ -235,7 +304,7 @@ def signup():
         
         if existing_user:
             flash('Username or email already exists', 'error')
-            return render_template('signup.html')
+            return render_template('passenger_signup.html')
         
         try:
             execute(
@@ -246,47 +315,93 @@ def signup():
                 (username, email, phone_number or None, generate_password_hash(password))
             )
             flash('Account created successfully! Please login.', 'success')
-            return redirect(url_for('login'))
+            return redirect(url_for('passenger_login'))
         except Exception as e:
             flash('Error creating account. Please try again.', 'error')
-            return render_template('signup.html')
+            return render_template('passenger_signup.html')
     
-    return render_template('signup.html')
+    return render_template('passenger_signup.html')
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
+@app.route('/passenger/login', methods=['GET', 'POST'])
+def passenger_login():
     if request.method == 'POST':
-        username = request.form.get('username', '').strip()
+        username = request.form.get('identifier', '').strip()
         password = request.form.get('password', '')
         
         if not username or not password:
             flash('Please enter username and password', 'error')
-            return render_template('login.html')
+            return render_template('passenger_login.html')
         
         passenger = query_one(
             'SELECT passenger_id, name, password FROM Passenger WHERE lower(name) = lower(?) OR lower(email) = lower(?)',
             (username, username)
         )
         
-        if passenger and check_password_hash(passenger['password'], password):
-            session['passenger_id'] = passenger['passenger_id']
-            session['username'] = passenger['name']
+        if passenger and verify_password(passenger['password'], password):
+            set_session('passenger', passenger['passenger_id'], passenger['name'])
             flash(f'Welcome back, {passenger["name"]}!', 'success')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('passenger_dashboard'))
         else:
             flash('Invalid username or password', 'error')
-            return render_template('login.html')
+            return render_template('passenger_login.html')
     
-    return render_template('login.html')
+    return render_template('passenger_login.html')
 
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    return render_template('dashboard.html', username=session.get('username'))
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        admin = query_one('SELECT admin_id, name, email, password FROM Admin WHERE lower(email) = lower(?)', (email,))
+        if admin and verify_password(admin['password'], password):
+            set_session('admin', admin['admin_id'], admin['name'])
+            flash(f'Welcome, {admin["name"]}!', 'success')
+            return redirect(url_for('admin_dashboard'))
+        flash('Invalid admin email or password', 'error')
+    return render_template('admin_login.html')
+
+
+@app.route('/driver/login', methods=['GET', 'POST'])
+def driver_login():
+    if request.method == 'POST':
+        license_number = request.form.get('license_number', '').strip()
+        password = request.form.get('password', '')
+        driver = query_one(
+            '''
+            SELECT driver_id, name, phone_number, license_number, password, status
+            FROM Driver
+            WHERE upper(license_number) = upper(?)
+            ''',
+            (license_number,)
+        )
+        if driver and driver['status'] == 'active' and verify_password(driver['password'], password):
+            set_session('driver', driver['driver_id'], driver['name'])
+            flash(f'Welcome, {driver["name"]}!', 'success')
+            return redirect(url_for('driver_dashboard'))
+        flash('Invalid driver license or password', 'error')
+    return render_template('driver_login.html')
+
+
+@app.route('/passenger/dashboard')
+@role_required('passenger')
+def passenger_dashboard():
+    return render_template('passenger_dashboard.html', username=session.get('username'))
+
+
+@app.route('/admin/dashboard')
+@role_required('admin')
+def admin_dashboard():
+    return render_template('admin_dashboard.html', username=session.get('username'))
+
+
+@app.route('/driver/dashboard')
+@role_required('driver')
+def driver_dashboard():
+    return render_template('driver_dashboard.html', username=session.get('username'))
 
 
 @app.get('/api/stations')
-@login_required
+@api_role_required('passenger')
 def api_stations():
     stations = query_all(
         '''
@@ -299,7 +414,7 @@ def api_stations():
 
 
 @app.get('/api/routes')
-@login_required
+@api_role_required('passenger')
 def api_routes():
     routes = query_all(
         '''
@@ -322,7 +437,7 @@ def api_routes():
 
 
 @app.get('/api/trips')
-@login_required
+@api_role_required('passenger')
 def api_trips():
     start = request.args.get('start', '').strip()
     end = request.args.get('end', '').strip()
@@ -385,7 +500,7 @@ def api_trips():
 
 
 @app.get('/api/capacity')
-@login_required
+@api_role_required('passenger')
 def api_capacity():
     buses = query_all(
         '''
@@ -414,13 +529,53 @@ def api_capacity():
 
 
 @app.get('/api/me')
-@login_required
+@api_role_required('passenger')
 def api_me():
     return jsonify(current_passenger())
 
 
+@app.get('/api/passenger/dashboard')
+@api_role_required('passenger')
+def api_passenger_dashboard():
+    passenger_id = session['user_id']
+    return jsonify({
+        'passenger': current_passenger(),
+        'tickets': query_all(
+            '''
+            SELECT ticket_id, purchase_time, ticket_status, fixed_fare, route_name,
+                   start_station, end_station
+            FROM v_passenger_tickets
+            WHERE passenger_id = ?
+            ORDER BY purchase_time DESC
+            LIMIT 8
+            ''',
+            (passenger_id,)
+        ),
+        'notifications': query_all(
+            '''
+            SELECT notification_id, message, type, is_read, created_at
+            FROM Notification
+            WHERE passenger_id = ?
+            ORDER BY created_at DESC
+            LIMIT 8
+            ''',
+            (passenger_id,)
+        ),
+        'complaints': query_all(
+            '''
+            SELECT complaint_id, complaint_text, status, response_text, created_at
+            FROM Complaint
+            WHERE passenger_id = ?
+            ORDER BY created_at DESC
+            LIMIT 8
+            ''',
+            (passenger_id,)
+        )
+    })
+
+
 @app.post('/api/tickets')
-@login_required
+@api_role_required('passenger')
 def api_create_ticket():
     data = request.get_json(silent=True) or {}
     route_id = data.get('route_id')
@@ -450,21 +605,21 @@ def api_create_ticket():
     with get_db() as conn:
         conn.execute(
             'UPDATE Passenger SET card_balance = card_balance - ? WHERE passenger_id = ?',
-            (fare, session['passenger_id'])
+            (fare, session['user_id'])
         )
         cursor = conn.execute(
             '''
             INSERT INTO Ticket (passenger_id, schedule_id, fixed_fare, start_station, end_station)
             VALUES (?, ?, ?, ?, ?)
             ''',
-            (session['passenger_id'], schedule['schedule_id'], fare, start, end)
+            (session['user_id'], schedule['schedule_id'], fare, start, end)
         )
         conn.execute(
             '''
             INSERT INTO Notification (passenger_id, message, type)
             VALUES (?, ?, 'ticket')
             ''',
-            (session['passenger_id'], f'Ticket booked from {start} to {end} for PKR {fare:.0f}')
+            (session['user_id'], f'Ticket booked from {start} to {end} for PKR {fare:.0f}')
         )
         conn.commit()
 
@@ -472,8 +627,14 @@ def api_create_ticket():
     return jsonify({'ticket_id': cursor.lastrowid, 'card_balance': passenger['card_balance']})
 
 
+@app.post('/api/passenger/tickets')
+@api_role_required('passenger')
+def api_passenger_create_ticket():
+    return api_create_ticket()
+
+
 @app.get('/api/tickets')
-@login_required
+@api_role_required('passenger')
 def api_tickets():
     tickets = query_all(
         '''
@@ -484,185 +645,262 @@ def api_tickets():
         ORDER BY purchase_time DESC
         LIMIT 10
         ''',
-        (session['passenger_id'],)
+        (session['user_id'],)
     )
     return jsonify(tickets)
 
 
-DATABASE_TABLES = [
-    {
-        'name': 'Passenger',
-        'description': 'Passengers who use the BRT system, including login, phone, and card balance.',
-        'columns': ['passenger_id', 'name', 'email', 'phone_number', 'card_balance', 'created_at'],
-        'sample_query': '''
-            SELECT passenger_id, name, email, phone_number, card_balance, created_at
-            FROM Passenger
-            ORDER BY passenger_id
-            LIMIT 8
+@app.get('/api/passenger/trips')
+@api_role_required('passenger')
+def api_passenger_trips():
+    return api_trips()
+
+
+@app.post('/api/recharge')
+@api_role_required('passenger')
+def api_recharge():
+    data = request.get_json(silent=True) or {}
+    amount = float(data.get('amount') or 0)
+    payment_method = data.get('payment_method') or 'EasyPaisa'
+    allowed_methods = {'EasyPaisa', 'JazzCash', 'card', 'cash'}
+    if amount <= 0 or payment_method not in allowed_methods:
+        return jsonify({'error': 'Valid amount and payment method are required'}), 400
+    with get_db() as conn:
+        conn.execute(
+            '''
+            INSERT INTO Recharge (passenger_id, amount, payment_method, status)
+            VALUES (?, ?, ?, 'success')
+            ''',
+            (session['user_id'], amount, payment_method)
+        )
+        conn.execute(
+            'UPDATE Passenger SET card_balance = card_balance + ? WHERE passenger_id = ?',
+            (amount, session['user_id'])
+        )
+        conn.commit()
+    return jsonify(current_passenger())
+
+
+@app.post('/api/passenger/recharge')
+@api_role_required('passenger')
+def api_passenger_recharge():
+    return api_recharge()
+
+
+@app.post('/api/complaints')
+@api_role_required('passenger')
+def api_create_complaint():
+    data = request.get_json(silent=True) or {}
+    complaint_text = (data.get('complaint_text') or '').strip()
+    if len(complaint_text) < 10:
+        return jsonify({'error': 'Complaint must be at least 10 characters'}), 400
+    complaint_id = execute(
+        'INSERT INTO Complaint (passenger_id, complaint_text, status) VALUES (?, ?, "open")',
+        (session['user_id'], complaint_text)
+    )
+    return jsonify({'complaint_id': complaint_id, 'status': 'open'})
+
+
+@app.post('/api/passenger/complaints')
+@api_role_required('passenger')
+def api_passenger_create_complaint():
+    return api_create_complaint()
+
+
+@app.get('/api/passenger/notifications')
+@api_role_required('passenger')
+def api_passenger_notifications():
+    notifications = query_all(
         '''
-    },
-    {
-        'name': 'Admin',
-        'description': 'System administrators who can manage complaints and notifications.',
-        'columns': ['admin_id', 'name', 'email', 'created_at'],
-        'sample_query': '''
-            SELECT admin_id, name, email, created_at
-            FROM Admin
-            ORDER BY admin_id
-            LIMIT 8
+        SELECT notification_id, message, type, is_read, created_at
+        FROM Notification
+        WHERE passenger_id = ?
+        ORDER BY created_at DESC
+        LIMIT 8
+        ''',
+        (session['user_id'],)
+    )
+    return jsonify(notifications)
+
+
+@app.get('/api/driver/overview')
+@api_role_required('driver')
+def api_driver_overview():
+    schedules = api_driver_schedules().get_json()
+    return jsonify({
+        'driver': current_driver(),
+        'assignment_count': len(schedules),
+        'schedules': schedules
+    })
+
+
+@app.get('/api/driver/schedules')
+@api_role_required('driver')
+def api_driver_schedules():
+    schedules = query_all(
         '''
-    },
-    {
-        'name': 'Bus',
-        'description': 'Buses with type, status, capacity, and current passenger load.',
-        'columns': ['bus_id', 'bus_number', 'bus_type', 'capacity', 'current_passengers', 'status'],
-        'sample_query': '''
-            SELECT bus_id, bus_number, bus_type, capacity, current_passengers, status
-            FROM Bus
-            ORDER BY bus_id
-            LIMIT 8
+        SELECT s.schedule_id, b.bus_number, r.route_code, r.route_name, r.platform,
+               s.departure_time, s.arrival_time, s.operating_days, s.status
+        FROM Schedule s
+        JOIN Bus b ON b.bus_id = s.bus_id
+        JOIN Route r ON r.route_id = s.route_id
+        WHERE s.driver_id = ?
+        ORDER BY s.departure_time
+        ''',
+        (session['user_id'],)
+    )
+    return jsonify(schedules)
+
+
+@app.get('/api/driver/assignments')
+@api_role_required('driver')
+def api_driver_assignments():
+    return api_driver_schedules()
+
+
+@app.get('/api/driver/route/<int:route_id>/stops')
+@api_role_required('driver')
+def api_driver_route_stops(route_id):
+    stops = query_all(
         '''
-    },
-    {
-        'name': 'Driver',
-        'description': 'Drivers assigned to schedules.',
-        'columns': ['driver_id', 'name', 'phone_number', 'license_number', 'status'],
-        'sample_query': '''
-            SELECT driver_id, name, phone_number, license_number, status
-            FROM Driver
-            ORDER BY driver_id
-            LIMIT 8
+        SELECT st.station_name, rs.stop_order
+        FROM Route_Station rs
+        JOIN Station st ON st.station_id = rs.station_id
+        JOIN Schedule s ON s.route_id = rs.route_id
+        WHERE rs.route_id = ?
+          AND s.driver_id = ?
+        ORDER BY rs.stop_order
+        ''',
+        (route_id, session['user_id'])
+    )
+    return jsonify(stops)
+
+
+@app.post('/api/driver/schedules/<int:schedule_id>/status')
+@api_role_required('driver')
+def api_update_schedule_status(schedule_id):
+    data = request.get_json(silent=True) or {}
+    status = data.get('status')
+    allowed_statuses = {'scheduled', 'active', 'delayed', 'cancelled'}
+    if status not in allowed_statuses:
+        return jsonify({'error': 'Invalid schedule status'}), 400
+    updated = execute(
         '''
-    },
-    {
-        'name': 'Route',
-        'description': 'Routes from the real station data, including platform, headway, and fare rule.',
-        'columns': ['route_id', 'route_code', 'route_name', 'route_type', 'total_stops', 'platform', 'fare_per_stop'],
-        'sample_query': '''
-            SELECT route_id, route_code, route_name, route_type, total_stops, platform, fare_per_stop
-            FROM Route
-            ORDER BY route_code
-            LIMIT 8
-        '''
-    },
-    {
-        'name': 'Station',
-        'description': 'Unique BRT station names used by all routes.',
-        'columns': ['station_id', 'station_name', 'location_area', 'created_at'],
-        'sample_query': '''
-            SELECT station_id, station_name, location_area, created_at
-            FROM Station
-            ORDER BY station_name
-            LIMIT 8
-        '''
-    },
-    {
-        'name': 'Route_Station',
-        'description': 'Junction table that stores route-to-station relationships and stop order.',
-        'columns': ['route_station_id', 'route_code', 'station_name', 'stop_order'],
-        'sample_query': '''
-            SELECT rs.route_station_id, r.route_code, st.station_name, rs.stop_order
-            FROM Route_Station rs
-            JOIN Route r ON r.route_id = rs.route_id
-            JOIN Station st ON st.station_id = rs.station_id
-            ORDER BY r.route_code, rs.stop_order
-            LIMIT 8
-        '''
-    },
-    {
-        'name': 'Schedule',
-        'description': 'Schedules connect a bus, driver, and route with timing and operating days.',
-        'columns': ['schedule_id', 'bus_number', 'route_code', 'driver_name', 'departure_time', 'arrival_time', 'status'],
-        'sample_query': '''
-            SELECT s.schedule_id, b.bus_number, r.route_code, d.name AS driver_name,
-                   s.departure_time, s.arrival_time, s.status
-            FROM Schedule s
-            JOIN Bus b ON b.bus_id = s.bus_id
-            JOIN Route r ON r.route_id = s.route_id
-            JOIN Driver d ON d.driver_id = s.driver_id
-            ORDER BY s.schedule_id
-            LIMIT 8
-        '''
-    },
-    {
-        'name': 'Ticket',
-        'description': 'Tickets bought by passengers for a scheduled route.',
-        'columns': ['ticket_id', 'passenger_name', 'route_code', 'fixed_fare', 'start_station', 'end_station', 'status'],
-        'sample_query': '''
-            SELECT t.ticket_id, p.name AS passenger_name, r.route_code, t.fixed_fare,
-                   t.start_station, t.end_station, t.status
-            FROM Ticket t
-            JOIN Passenger p ON p.passenger_id = t.passenger_id
-            LEFT JOIN Schedule s ON s.schedule_id = t.schedule_id
-            LEFT JOIN Route r ON r.route_id = s.route_id
-            ORDER BY t.ticket_id DESC
-            LIMIT 8
-        '''
-    },
-    {
-        'name': 'Recharge',
-        'description': 'Passenger card top-up transactions.',
-        'columns': ['recharge_id', 'passenger_name', 'amount', 'payment_method', 'status', 'recharge_time'],
-        'sample_query': '''
-            SELECT r.recharge_id, p.name AS passenger_name, r.amount, r.payment_method,
-                   r.status, r.recharge_time
-            FROM Recharge r
-            JOIN Passenger p ON p.passenger_id = r.passenger_id
-            ORDER BY r.recharge_id DESC
-            LIMIT 8
-        '''
-    },
-    {
-        'name': 'Complaint',
-        'description': 'Passenger complaints and admin responses.',
-        'columns': ['complaint_id', 'passenger_name', 'assigned_admin', 'complaint_text', 'status'],
-        'sample_query': '''
-            SELECT c.complaint_id, p.name AS passenger_name, a.name AS assigned_admin,
-                   c.complaint_text, c.status
-            FROM Complaint c
-            JOIN Passenger p ON p.passenger_id = c.passenger_id
-            LEFT JOIN Admin a ON a.admin_id = c.admin_id
-            ORDER BY c.complaint_id DESC
-            LIMIT 8
-        '''
-    },
-    {
-        'name': 'Notification',
-        'description': 'Messages sent to passengers by the system or admin.',
-        'columns': ['notification_id', 'passenger_name', 'message', 'type', 'is_read', 'created_at'],
-        'sample_query': '''
-            SELECT n.notification_id, p.name AS passenger_name, n.message,
-                   n.type, n.is_read, n.created_at
-            FROM Notification n
-            JOIN Passenger p ON p.passenger_id = n.passenger_id
-            ORDER BY n.notification_id DESC
-            LIMIT 8
-        '''
+        UPDATE Schedule
+        SET status = ?
+        WHERE schedule_id = ? AND driver_id = ?
+        ''',
+        (status, schedule_id, session['user_id'])
+    )
+    return jsonify({'schedule_id': schedule_id, 'status': status, 'updated': updated})
+
+
+@app.get('/api/admin/overview')
+@api_role_required('admin')
+def api_admin_overview():
+    stats = {
+        'passengers': query_one('SELECT COUNT(*) AS total FROM Passenger')['total'],
+        'drivers': query_one('SELECT COUNT(*) AS total FROM Driver')['total'],
+        'buses': query_one('SELECT COUNT(*) AS total FROM Bus')['total'],
+        'active_buses': query_one("SELECT COUNT(*) AS total FROM Bus WHERE status = 'active'")['total'],
+        'routes': query_one('SELECT COUNT(*) AS total FROM Route')['total'],
+        'open_complaints': query_one("SELECT COUNT(*) AS total FROM Complaint WHERE status IN ('open', 'in_progress')")['total'],
+        'tickets': query_one('SELECT COUNT(*) AS total FROM Ticket')['total'],
     }
-]
+    schedules = query_all(
+        '''
+        SELECT s.schedule_id, b.bus_number, r.route_code, r.route_name,
+               d.name AS driver_name, s.departure_time, s.arrival_time, s.status
+        FROM Schedule s
+        JOIN Bus b ON b.bus_id = s.bus_id
+        JOIN Route r ON r.route_id = s.route_id
+        JOIN Driver d ON d.driver_id = s.driver_id
+        ORDER BY s.departure_time
+        LIMIT 12
+        '''
+    )
+    complaints = query_all(
+        '''
+        SELECT c.complaint_id, p.name AS passenger_name, c.complaint_text,
+               c.status, c.created_at
+        FROM Complaint c
+        JOIN Passenger p ON p.passenger_id = c.passenger_id
+        WHERE c.status IN ('open', 'in_progress')
+        ORDER BY c.created_at DESC
+        LIMIT 12
+        '''
+    )
+    return jsonify({'stats': stats, 'schedules': schedules, 'complaints': complaints})
 
 
-@app.get('/api/database')
-@login_required
-def api_database():
-    tables = []
-    for table in DATABASE_TABLES:
-        count_row = query_one(f'SELECT COUNT(*) AS total FROM {table["name"]}')
-        rows = query_all(table['sample_query'])
-        tables.append({
-            'name': table['name'],
-            'description': table['description'],
-            'columns': table['columns'],
-            'row_count': count_row['total'],
-            'rows': rows,
-        })
-    return jsonify({'tables': tables})
+@app.get('/api/admin/routes')
+@api_role_required('admin')
+def api_admin_routes():
+    routes = query_all(
+        '''
+        SELECT route_code, route_name, route_type, total_stops, platform,
+               headway_min, headway_max, fare_per_stop
+        FROM Route
+        ORDER BY route_code
+        '''
+    )
+    return jsonify(routes)
+
+
+@app.get('/api/admin/complaints')
+@api_role_required('admin')
+def api_admin_complaints():
+    complaints = query_all(
+        '''
+        SELECT c.complaint_id, p.name AS passenger_name, c.complaint_text,
+               c.status, c.response_text, c.created_at
+        FROM Complaint c
+        JOIN Passenger p ON p.passenger_id = c.passenger_id
+        ORDER BY c.created_at DESC
+        LIMIT 25
+        '''
+    )
+    return jsonify(complaints)
+
+
+@app.post('/api/admin/complaints/<int:complaint_id>/respond')
+@api_role_required('admin')
+def api_admin_respond_complaint(complaint_id):
+    data = request.get_json(silent=True) or {}
+    response_text = (data.get('response_text') or '').strip()
+    status = data.get('status') or 'resolved'
+    if not response_text or status not in {'in_progress', 'resolved'}:
+        return jsonify({'error': 'Response and valid status are required'}), 400
+    with get_db() as conn:
+        complaint = conn.execute(
+            'SELECT passenger_id FROM Complaint WHERE complaint_id = ?',
+            (complaint_id,)
+        ).fetchone()
+        if not complaint:
+            return jsonify({'error': 'Complaint not found'}), 404
+        conn.execute(
+            '''
+            UPDATE Complaint
+            SET admin_id = ?, response_text = ?, status = ?
+            WHERE complaint_id = ?
+            ''',
+            (session['user_id'], response_text, status, complaint_id)
+        )
+        conn.execute(
+            '''
+            INSERT INTO Notification (admin_id, passenger_id, message, type)
+            VALUES (?, ?, ?, 'complaint')
+            ''',
+            (session['user_id'], complaint['passenger_id'], response_text)
+        )
+        conn.commit()
+    return jsonify({'complaint_id': complaint_id, 'status': status})
 
 @app.route('/logout')
 def logout():
     session.clear()
     flash('You have been logged out', 'info')
-    return redirect(url_for('login'))
+    return redirect(url_for('index'))
 
 initialize_database()
 

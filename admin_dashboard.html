@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - BRT Peshawar</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #eef5f2; color: #24352d; }
+        .nav { background: #0b3618; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+        .nav h1 { font-size: 22px; }
+        .nav a { color: white; background: #d32f2f; padding: 10px 16px; border-radius: 8px; text-decoration: none; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 28px 18px; }
+        .hero { background: linear-gradient(135deg, #0b3618, #00a896); color: white; border-radius: 24px; padding: 32px; margin-bottom: 24px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .card { background: white; border-radius: 18px; padding: 22px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+        .stat { font-size: 32px; color: #0b3618; font-weight: 800; }
+        .label { color: #60736a; margin-top: 6px; }
+        h2 { color: #0b3618; margin-bottom: 14px; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 14px; overflow: hidden; }
+        th { background: #0b3618; color: white; text-align: left; padding: 12px; }
+        td { padding: 12px; border-bottom: 1px solid #edf2f0; }
+        .section { margin-bottom: 24px; }
+        .badge { padding: 5px 10px; border-radius: 20px; background: #e8f5e9; color: #2e7d32; font-weight: 700; font-size: 12px; }
+        .empty { color: #728077; padding: 12px; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <h1><i class="fas fa-user-shield"></i> Admin Dashboard</h1>
+        <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+    </div>
+
+    <div class="container">
+        <div class="hero">
+            <h2 style="color:white;">Welcome, {{ name }}</h2>
+            <p>Manage routes, schedules, buses, drivers, passenger support, and system activity from one clean dashboard.</p>
+        </div>
+
+        <div class="grid" id="stats"></div>
+
+        <div class="section card">
+            <h2><i class="fas fa-route"></i> Active Schedules</h2>
+            <div id="schedules">Loading...</div>
+        </div>
+
+        <div class="section card">
+            <h2><i class="fas fa-comment-dots"></i> Open Complaints</h2>
+            <div id="complaints">Loading...</div>
+        </div>
+    </div>
+
+    <script>
+        async function api(url) {
+            const response = await fetch(url);
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Request failed');
+            return data;
+        }
+
+        function renderTable(rows, columns, emptyText) {
+            if (!rows.length) return `<div class="empty">${emptyText}</div>`;
+            return `<table><thead><tr>${columns.map(c => `<th>${c.label}</th>`).join('')}</tr></thead><tbody>${
+                rows.map(row => `<tr>${columns.map(c => `<td>${row[c.key] ?? '-'}</td>`).join('')}</tr>`).join('')
+            }</tbody></table>`;
+        }
+
+        async function loadDashboard() {
+            const data = await api('/api/admin/overview');
+            document.getElementById('stats').innerHTML = `
+                <div class="card"><div class="stat">${data.stats.passengers}</div><div class="label">Passengers</div></div>
+                <div class="card"><div class="stat">${data.stats.drivers}</div><div class="label">Drivers</div></div>
+                <div class="card"><div class="stat">${data.stats.buses}</div><div class="label">Buses</div></div>
+                <div class="card"><div class="stat">${data.stats.routes}</div><div class="label">Routes</div></div>
+                <div class="card"><div class="stat">${data.stats.open_complaints}</div><div class="label">Open Complaints</div></div>
+            `;
+            document.getElementById('schedules').innerHTML = renderTable(data.schedules, [
+                { key: 'bus_number', label: 'Bus' },
+                { key: 'route_code', label: 'Route' },
+                { key: 'route_name', label: 'Route Name' },
+                { key: 'driver_name', label: 'Driver' },
+                { key: 'departure_time', label: 'Departure' },
+                { key: 'status', label: 'Status' }
+            ], 'No schedules found.');
+            document.getElementById('complaints').innerHTML = renderTable(data.complaints, [
+                { key: 'passenger_name', label: 'Passenger' },
+                { key: 'complaint_text', label: 'Complaint' },
+                { key: 'status', label: 'Status' },
+                { key: 'created_at', label: 'Created' }
+            ], 'No open complaints.');
+        }
+        loadDashboard().catch(error => alert(error.message));
+    </script>
+</body>
+</html>

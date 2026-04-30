@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passenger Dashboard - BRT Peshawar</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Segoe UI, Arial, sans-serif; background: #eef5f1; color: #173322; }
+        nav { background: #0b3618; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+        nav a { color: white; text-decoration: none; background: #d32f2f; padding: 9px 14px; border-radius: 10px; }
+        main { max-width: 1180px; margin: 0 auto; padding: 28px 18px; }
+        .hero { background: linear-gradient(135deg, #0b3618, #00a896); color: white; padding: 32px; border-radius: 24px; margin-bottom: 22px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+        .card { background: white; border-radius: 18px; padding: 22px; box-shadow: 0 12px 30px rgba(0,0,0,.08); }
+        h2, h3 { margin-bottom: 14px; color: #0b3618; }
+        .hero h1 { margin-bottom: 8px; }
+        label { display: block; margin: 10px 0 6px; font-weight: 700; }
+        select, input, textarea { width: 100%; padding: 12px; border: 1px solid #d9e4df; border-radius: 12px; font-size: 15px; }
+        button { border: 0; background: #0b3618; color: white; padding: 12px 16px; border-radius: 12px; cursor: pointer; font-weight: 700; margin-top: 12px; }
+        button:hover { background: #1a5c2e; }
+        .route-card, .list-item { border-left: 4px solid #00a896; background: #f8fcfa; padding: 14px; border-radius: 12px; margin-top: 10px; }
+        .muted { color: #65756c; font-size: 14px; }
+        .balance { font-size: 30px; font-weight: 800; color: #00a896; }
+    </style>
+</head>
+<body>
+    <nav>
+        <strong><i class="fas fa-bus"></i> Passenger Dashboard</strong>
+        <a href="{{ url_for('logout') }}">Logout</a>
+    </nav>
+    <main>
+        <section class="hero">
+            <h1>Welcome, {{ user_name }}</h1>
+            <p>Plan your trip, book tickets, recharge your card, and submit support requests.</p>
+        </section>
+
+        <section class="grid">
+            <div class="card">
+                <h2>My Card</h2>
+                <div class="balance" id="balance">PKR --</div>
+                <label>Recharge Amount</label>
+                <input id="rechargeAmount" type="number" min="1" placeholder="Enter amount">
+                <label>Payment Method</label>
+                <select id="paymentMethod">
+                    <option>EasyPaisa</option>
+                    <option>JazzCash</option>
+                    <option>card</option>
+                    <option>cash</option>
+                </select>
+                <button onclick="recharge()">Recharge Card</button>
+            </div>
+
+            <div class="card">
+                <h2>Plan Trip</h2>
+                <label>From</label>
+                <select id="startStation"></select>
+                <label>To</label>
+                <select id="endStation"></select>
+                <button onclick="findTrips()">Find Routes</button>
+                <div id="tripResults"></div>
+            </div>
+
+            <div class="card">
+                <h2>Support Complaint</h2>
+                <textarea id="complaintText" rows="5" placeholder="Write your complaint here"></textarea>
+                <button onclick="submitComplaint()">Submit Complaint</button>
+            </div>
+        </section>
+
+        <section class="grid" style="margin-top: 18px;">
+            <div class="card">
+                <h2>Recent Tickets</h2>
+                <div id="tickets"></div>
+            </div>
+            <div class="card">
+                <h2>Notifications</h2>
+                <div id="notifications"></div>
+            </div>
+            <div class="card">
+                <h2>My Complaints</h2>
+                <div id="complaints"></div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        async function api(url, options = {}) {
+            const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Request failed');
+            return data;
+        }
+
+        function money(value) { return `PKR ${Number(value || 0).toFixed(0)}`; }
+        function item(html) { return `<div class="list-item">${html}</div>`; }
+
+        async function loadPassenger() {
+            const data = await api('/api/passenger/dashboard');
+            document.getElementById('balance').textContent = money(data.passenger.card_balance);
+            document.getElementById('tickets').innerHTML = data.tickets.length
+                ? data.tickets.map(t => item(`<strong>${t.route_name || 'Route'}</strong><br>${t.start_station} to ${t.end_station}<br><span class="muted">${money(t.fixed_fare)} - ${t.ticket_status}</span>`)).join('')
+                : '<p class="muted">No tickets yet.</p>';
+            document.getElementById('notifications').innerHTML = data.notifications.length
+                ? data.notifications.map(n => item(`${n.message}<br><span class="muted">${n.created_at}</span>`)).join('')
+                : '<p class="muted">No notifications.</p>';
+            document.getElementById('complaints').innerHTML = data.complaints.length
+                ? data.complaints.map(c => item(`${c.complaint_text}<br><span class="muted">Status: ${c.status}</span>`)).join('')
+                : '<p class="muted">No complaints.</p>';
+        }
+
+        async function loadStations() {
+            const stations = await api('/api/stations');
+            const html = '<option value="">Select Station</option>' + stations.map(s => `<option>${s.station_name}</option>`).join('');
+            document.getElementById('startStation').innerHTML = html;
+            document.getElementById('endStation').innerHTML = html;
+        }
+
+        async function findTrips() {
+            const start = document.getElementById('startStation').value;
+            const end = document.getElementById('endStation').value;
+            const trips = await api(`/api/passenger/trips?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`);
+            document.getElementById('tripResults').innerHTML = trips.length
+                ? trips.map(t => `<div class="route-card"><strong>${t.route_name}</strong><br>Platform ${t.platform} - ${t.stop_count} stops - ${money(t.fare)}<br><span class="muted">Every ${t.headway_min}-${t.headway_max} min</span><br><button onclick='bookTicket(${JSON.stringify(t)}, "${start}", "${end}")'>Book Ticket</button></div>`).join('')
+                : '<p class="muted">No direct route found.</p>';
+        }
+
+        async function bookTicket(route, start, end) {
+            await api('/api/passenger/tickets', {
+                method: 'POST',
+                body: JSON.stringify({ route_id: route.route_id, start, end, fare: route.fare })
+            });
+            alert('Ticket booked successfully.');
+            loadPassenger();
+        }
+
+        async function recharge() {
+            await api('/api/passenger/recharge', {
+                method: 'POST',
+                body: JSON.stringify({
+                    amount: document.getElementById('rechargeAmount').value,
+                    payment_method: document.getElementById('paymentMethod').value
+                })
+            });
+            alert('Recharge successful.');
+            loadPassenger();
+        }
+
+        async function submitComplaint() {
+            await api('/api/passenger/complaints', {
+                method: 'POST',
+                body: JSON.stringify({ complaint_text: document.getElementById('complaintText').value })
+            });
+            document.getElementById('complaintText').value = '';
+            alert('Complaint submitted.');
+            loadPassenger();
+        }
+
+        loadStations().then(loadPassenger).catch(err => alert(err.message));
+    </script>
+</body>
+</html>

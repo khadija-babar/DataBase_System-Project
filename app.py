@@ -582,6 +582,12 @@ def api_capacity():
     return jsonify(buses)
 
 
+@app.get('/api/passenger/bus-occupancy')
+@api_role_required('passenger')
+def api_passenger_bus_occupancy():
+    return api_capacity()
+
+
 @app.get('/api/me')
 @api_role_required('passenger')
 def api_me():

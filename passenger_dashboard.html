@@ -23,6 +23,12 @@
         .route-card, .list-item { border-left: 4px solid #00a896; background: #f8fcfa; padding: 14px; border-radius: 12px; margin-top: 10px; }
         .muted { color: #65756c; font-size: 14px; }
         .balance { font-size: 30px; font-weight: 800; color: #00a896; }
+        .bus-card { border: 1px solid #dce8e2; border-left: 5px solid #00a896; border-radius: 14px; padding: 14px; margin-top: 10px; background: #f8fcfa; cursor: pointer; transition: .2s; }
+        .bus-card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,.1); }
+        .progress { height: 10px; background: #dce8e2; border-radius: 999px; overflow: hidden; margin: 10px 0; }
+        .progress span { display: block; height: 100%; background: linear-gradient(90deg, #00a896, #0b3618); }
+        .occupancy-detail { margin-top: 14px; padding: 14px; background: #eef9f6; border-radius: 14px; border: 1px solid #cbe7df; }
+        .badge { display: inline-block; padding: 4px 9px; border-radius: 999px; background: #e8f5e9; color: #2e7d32; font-weight: 700; font-size: 12px; margin: 3px; }
     </style>
 </head>
 <body>
@@ -67,6 +73,13 @@
                 <textarea id="complaintText" rows="5" placeholder="Write your complaint here"></textarea>
                 <button onclick="submitComplaint()">Submit Complaint</button>
             </div>
+
+            <div class="card">
+                <h2>Bus Occupancy</h2>
+                <p class="muted">Tap a bus to view route and passenger load before travelling.</p>
+                <div id="busOccupancy">Loading buses...</div>
+                <div id="busOccupancyDetail"></div>
+            </div>
         </section>
 
         <section class="grid" style="margin-top: 18px;">
@@ -95,6 +108,11 @@
 
         function money(value) { return `PKR ${Number(value || 0).toFixed(0)}`; }
         function item(html) { return `<div class="list-item">${html}</div>`; }
+        function occupancyText(value) {
+            if (value >= 75) return 'High occupancy';
+            if (value >= 45) return 'Medium occupancy';
+            return 'Seats available';
+        }
 
         async function loadPassenger() {
             const data = await api('/api/passenger/dashboard');
@@ -115,6 +133,40 @@
             const html = '<option value="">Select Station</option>' + stations.map(s => `<option>${s.station_name}</option>`).join('');
             document.getElementById('startStation').innerHTML = html;
             document.getElementById('endStation').innerHTML = html;
+        }
+
+        async function loadBusOccupancy() {
+            const buses = await api('/api/passenger/bus-occupancy');
+            document.getElementById('busOccupancy').innerHTML = buses.length
+                ? buses.map(bus => {
+                    const occupancy = Number(bus.occupancy || 0);
+                    return `
+                        <div class="bus-card" onclick="showBusOccupancy(${bus.bus_id})">
+                            <strong>${bus.bus_number}</strong> - ${bus.route_name || 'Route not assigned'}<br>
+                            <span class="muted">Platform ${bus.platform || '-'} | Every ${bus.headway_min || '-'}-${bus.headway_max || '-'} min</span>
+                            <div class="progress"><span style="width:${occupancy}%"></span></div>
+                            <strong>${occupancy}%</strong> <span class="muted">${occupancyText(occupancy)}</span>
+                        </div>
+                    `;
+                }).join('')
+                : '<p class="muted">No active buses available.</p>';
+        }
+
+        async function showBusOccupancy(busId) {
+            const data = await api(`/api/passenger/bus-occupancy/${busId}`);
+            const bus = data.bus;
+            const stops = data.route_stops.length
+                ? data.route_stops.map(stop => `<span class="badge">${stop.stop_order}. ${stop.station_name}</span>`).join(' ')
+                : '<span class="muted">Route stops are not available.</span>';
+            document.getElementById('busOccupancyDetail').innerHTML = `
+                <div class="occupancy-detail">
+                    <h3>${bus.bus_number} Details</h3>
+                    <p><strong>${bus.occupancy}% occupied</strong> (${bus.current_passengers}/${bus.capacity} passengers)</p>
+                    <p>${bus.route_name || 'No active route'} | Platform ${bus.platform || '-'}</p>
+                    <p class="muted">${occupancyText(Number(bus.occupancy || 0))}</p>
+                    <div style="margin-top: 10px;">${stops}</div>
+                </div>
+            `;
         }
 
         async function findTrips() {
@@ -157,7 +209,7 @@
             loadPassenger();
         }
 
-        loadStations().then(loadPassenger).catch(err => alert(err.message));
+        Promise.all([loadStations(), loadPassenger(), loadBusOccupancy()]).catch(err => alert(err.message));
     </script>
 </body>
 </html>

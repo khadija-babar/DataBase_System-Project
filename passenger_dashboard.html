@@ -135,6 +135,24 @@
             if (value >= 45) return 'Medium occupancy';
             return 'Seats available';
         }
+        function videoInfo(analysis) {
+            if (!analysis) return '<p class="muted">Video analysis is not available for this bus yet.</p>';
+            const occupancy = analysis.occupancy_percent ?? analysis.occupancy ?? 0;
+            const message = analysis.message || analysis.note || '';
+            return `
+                <div class="occupancy-detail">
+                    <h3><i class="fas fa-video"></i> Video-Based Count</h3>
+                    <div class="stats-row">
+                        <div class="stat-box"><strong>${analysis.people_count}</strong><span class="muted">People Counted</span></div>
+                        <div class="stat-box"><strong>${analysis.capacity}</strong><span class="muted">Bus Capacity</span></div>
+                        <div class="stat-box"><strong>${occupancy}%</strong><span class="muted">Video Occupancy</span></div>
+                    </div>
+                    <p class="muted">Video: ${analysis.video_file || 'No video assigned'}</p>
+                    <p class="muted">Source: ${analysis.source}</p>
+                    ${message ? `<p class="muted">${message}</p>` : ''}
+                </div>
+            `;
+        }
 
         async function loadPassenger() {
             const data = await api('/api/passenger/dashboard');
@@ -192,6 +210,7 @@
                     <p class="muted">${occupancyText(Number(bus.occupancy || 0))}</p>
                     <div style="margin-top: 10px;">${stops}</div>
                 </div>
+                ${videoInfo(data.video_analysis)}
             `;
             document.getElementById('passengerOccupancyModule').classList.add('show');
             document.getElementById('passengerOccupancyModule').scrollIntoView({ behavior: 'smooth', block: 'start' });

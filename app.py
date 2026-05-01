@@ -5,8 +5,56 @@ from functools import wraps
 from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from Bus_Project import analyze_video_capacity
+
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, 'database.db')
+
+BUS_VIDEO_MAP = {
+    'B-001': 'IMG_8595.MOV',
+    'B-002': 'IMG_8596.MOV',
+    'B-003': 'WhatsApp Video 2026-05-01 at 11.36.03 PM.mp4',
+    'B-004': 'WhatsApp Video 2026-05-01 at 11.36.04 PM.mp4',
+    'B-005': 'WhatsApp Video 2026-05-01 at 11.36.04 PM (1).mp4',
+    'B-006': 'WhatsApp Video 2026-05-01 at 11.36.04 PM (2).mp4',
+}
+
+
+def analyze_bus_video_for_capacity(bus):
+    video_name = BUS_VIDEO_MAP.get(bus['bus_number'])
+    if not video_name:
+        return {
+            'video_file': None,
+            'people_count': bus['current_passengers'],
+            'capacity': bus['capacity'],
+            'available_seats': max(bus['capacity'] - bus['current_passengers'], 0),
+            'occupancy_percent': bus['occupancy'],
+            'source': 'database',
+            'message': 'No video has been assigned to this bus yet.'
+        }
+
+    video_path = os.path.join(BASE_DIR, video_name)
+    try:
+        result = analyze_video_capacity(video_path, bus['capacity'])
+        source = 'video'
+        message = 'Video analysis completed.'
+    except Exception as exc:
+        result = {
+            'people_count': bus['current_passengers'],
+            'capacity': bus['capacity'],
+            'available_seats': max(bus['capacity'] - bus['current_passengers'], 0),
+            'occupancy_percent': bus['occupancy'],
+            'sampled_frames': 0,
+        }
+        source = 'database_fallback'
+        message = f'Video analysis unavailable: {exc}'
+
+    return {
+        'video_file': video_name,
+        **result,
+        'source': source,
+        'message': message
+    }
 
 app = Flask(__name__, template_folder=BASE_DIR)
 app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
@@ -662,7 +710,8 @@ def api_passenger_bus_occupancy_detail(bus_id):
         ''',
         (bus['route_id'],)
     )
-    return jsonify({'bus': bus, 'route_stops': route_stops})
+    video_analysis = analyze_bus_video_for_capacity(bus)
+    return jsonify({'bus': bus, 'route_stops': route_stops, 'video_analysis': video_analysis})
 
 
 @app.get('/api/me')

@@ -442,6 +442,12 @@ def admin_dashboard():
     return render_template('admin_dashboard.html', username=session.get('username'))
 
 
+@app.route('/admin/bus-occupancy/<int:bus_id>')
+@role_required('admin')
+def admin_bus_occupancy(bus_id):
+    return render_template('bus_occupancy.html', username=session.get('username'), bus_id=bus_id)
+
+
 @app.route('/driver/dashboard')
 @role_required('driver')
 def driver_dashboard():
@@ -893,6 +899,163 @@ def api_admin_routes():
         '''
     )
     return jsonify(routes)
+
+
+@app.get('/api/admin/buses')
+@api_role_required('admin')
+def api_admin_buses():
+    buses = query_all(
+        '''
+        SELECT
+            b.bus_id,
+            b.bus_number,
+            b.bus_type,
+            b.capacity,
+            b.current_passengers,
+            b.status,
+            ROUND((b.current_passengers * 100.0) / b.capacity, 0) AS occupancy,
+            r.route_code,
+            r.route_name,
+            r.platform,
+            s.departure_time,
+            s.arrival_time
+        FROM Bus b
+        LEFT JOIN Schedule s ON s.bus_id = b.bus_id
+        LEFT JOIN Route r ON r.route_id = s.route_id
+        GROUP BY b.bus_id
+        ORDER BY b.bus_number
+        '''
+    )
+    return jsonify(buses)
+
+
+@app.get('/api/admin/buses/<int:bus_id>/occupancy')
+@api_role_required('admin')
+def api_admin_bus_occupancy(bus_id):
+    bus = query_one(
+        '''
+        SELECT
+            b.bus_id,
+            b.bus_number,
+            b.bus_type,
+            b.capacity,
+            b.current_passengers,
+            b.status,
+            ROUND((b.current_passengers * 100.0) / b.capacity, 0) AS occupancy,
+            r.route_id,
+            r.route_code,
+            r.route_name,
+            r.platform,
+            s.schedule_id,
+            s.departure_time,
+            s.arrival_time,
+            s.status AS schedule_status,
+            d.name AS driver_name
+        FROM Bus b
+        LEFT JOIN Schedule s ON s.bus_id = b.bus_id
+        LEFT JOIN Route r ON r.route_id = s.route_id
+        LEFT JOIN Driver d ON d.driver_id = s.driver_id
+        WHERE b.bus_id = ?
+        GROUP BY b.bus_id
+        ''',
+        (bus_id,)
+    )
+    if not bus:
+        return jsonify({'error': 'Bus not found'}), 404
+
+    route_stops = []
+    if bus.get('route_id'):
+        route_stops = query_all(
+            '''
+            SELECT st.station_name, rs.stop_order
+            FROM Route_Station rs
+            JOIN Station st ON st.station_id = rs.station_id
+            WHERE rs.route_id = ?
+            ORDER BY rs.stop_order
+            ''',
+            (bus['route_id'],)
+        )
+
+    tickets = query_all(
+        '''
+        SELECT COUNT(*) AS total
+        FROM Ticket t
+        JOIN Schedule s ON s.schedule_id = t.schedule_id
+        WHERE s.bus_id = ? AND t.status = 'active'
+        ''',
+        (bus_id,)
+    )[0]['total']
+
+    return jsonify({'bus': bus, 'route_stops': route_stops, 'active_tickets': tickets})
+
+
+@app.post('/api/admin/notifications/change')
+@api_role_required('admin')
+def api_admin_send_change_notification():
+    data = request.get_json(silent=True) or {}
+    message = (data.get('message') or '').strip()
+    if len(message) < 8:
+        return jsonify({'error': 'Please write a clear notification message'}), 400
+
+    with get_db() as conn:
+        passengers = conn.execute('SELECT passenger_id FROM Passenger').fetchall()
+        for passenger in passengers:
+            conn.execute(
+                '''
+                INSERT INTO Notification (admin_id, passenger_id, message, type)
+                VALUES (?, ?, ?, 'service_change')
+                ''',
+                (session['user_id'], passenger['passenger_id'], message)
+            )
+        conn.commit()
+
+    return jsonify({'sent': len(passengers), 'message': message})
+
+
+@app.delete('/api/admin/buses/<int:bus_id>')
+@api_role_required('admin')
+def api_admin_delete_bus(bus_id):
+    data = request.get_json(silent=True) or {}
+    custom_message = (data.get('message') or '').strip()
+
+    with get_db() as conn:
+        bus = conn.execute(
+            '''
+            SELECT b.bus_id, b.bus_number, r.route_code, r.route_name
+            FROM Bus b
+            LEFT JOIN Schedule s ON s.bus_id = b.bus_id
+            LEFT JOIN Route r ON r.route_id = s.route_id
+            WHERE b.bus_id = ?
+            GROUP BY b.bus_id
+            ''',
+            (bus_id,)
+        ).fetchone()
+        if not bus:
+            return jsonify({'error': 'Bus not found'}), 404
+
+        schedule_ids = [
+            row['schedule_id']
+            for row in conn.execute('SELECT schedule_id FROM Schedule WHERE bus_id = ?', (bus_id,)).fetchall()
+        ]
+        for schedule_id in schedule_ids:
+            conn.execute('UPDATE Ticket SET schedule_id = NULL WHERE schedule_id = ?', (schedule_id,))
+        conn.execute('DELETE FROM Schedule WHERE bus_id = ?', (bus_id,))
+        conn.execute('DELETE FROM Bus WHERE bus_id = ?', (bus_id,))
+
+        route_text = f" on {bus['route_code']}" if bus['route_code'] else ''
+        message = custom_message or f"Bus {bus['bus_number']}{route_text} has been removed from service. Please check available buses before travelling."
+        passengers = conn.execute('SELECT passenger_id FROM Passenger').fetchall()
+        for passenger in passengers:
+            conn.execute(
+                '''
+                INSERT INTO Notification (admin_id, passenger_id, message, type)
+                VALUES (?, ?, ?, 'bus_change')
+                ''',
+                (session['user_id'], passenger['passenger_id'], message)
+            )
+        conn.commit()
+
+    return jsonify({'deleted_bus_id': bus_id, 'notified_passengers': len(passengers), 'message': message})
 
 
 @app.get('/api/admin/complaints')

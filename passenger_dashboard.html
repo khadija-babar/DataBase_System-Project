@@ -32,6 +32,12 @@
         .progress span { display: block; height: 100%; background: linear-gradient(90deg, #00a896, #0b3618); }
         .occupancy-detail { margin-top: 14px; padding: 14px; background: #eef9f6; border-radius: 14px; border: 1px solid #cbe7df; }
         .badge { display: inline-block; padding: 4px 9px; border-radius: 999px; background: #e8f5e9; color: #2e7d32; font-weight: 700; font-size: 12px; margin: 3px; }
+        .occupancy-module { display: none; border: 2px solid #00a896; margin-top: 18px; }
+        .occupancy-module.show { display: block; }
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 12px 0; }
+        .stat-box { background: white; border-radius: 14px; padding: 14px; box-shadow: 0 6px 16px rgba(0,0,0,.07); }
+        .stat-box strong { display: block; color: #00a896; font-size: 24px; }
+        .secondary { background: #e7f7f4; color: #00796b; }
         .portal-feature { border: 2px solid #00a896; }
     </style>
 </head>
@@ -84,10 +90,15 @@
 
             <div class="card portal-feature" id="occupancyFeature">
                 <h2><i class="fas fa-users"></i> Bus Occupancy</h2>
-                <p class="muted">Passenger portal feature: tap a bus to view route and passenger load before travelling.</p>
+                <p class="muted">Passenger portal feature: tap any bus card to open the Bus Occupancy Module before travelling.</p>
                 <div id="busOccupancy">Loading buses...</div>
-                <div id="busOccupancyDetail"></div>
             </div>
+        </section>
+
+        <section id="passengerOccupancyModule" class="card occupancy-module">
+            <h2><i class="fas fa-bus"></i> Bus Occupancy Module</h2>
+            <div id="busOccupancyDetail"></div>
+            <button class="secondary" onclick="closeBusOccupancy()">Close Module</button>
         </section>
 
         <section class="grid" style="margin-top: 18px;">
@@ -171,13 +182,24 @@
                 : '<span class="muted">Route stops are not available.</span>';
             document.getElementById('busOccupancyDetail').innerHTML = `
                 <div class="occupancy-detail">
-                    <h3>${bus.bus_number} Details</h3>
-                    <p><strong>${bus.occupancy}% occupied</strong> (${bus.current_passengers}/${bus.capacity} passengers)</p>
-                    <p>${bus.route_name || 'No active route'} | Platform ${bus.platform || '-'}</p>
+                    <h3>${bus.bus_number} Occupancy Details</h3>
+                    <div class="stats-row">
+                        <div class="stat-box"><strong>${bus.occupancy}%</strong><span class="muted">Occupancy</span></div>
+                        <div class="stat-box"><strong>${bus.current_passengers}/${bus.capacity}</strong><span class="muted">Passenger Load</span></div>
+                        <div class="stat-box"><strong>${bus.platform || '-'}</strong><span class="muted">Platform</span></div>
+                    </div>
+                    <p><strong>${bus.route_name || 'No active route'}</strong></p>
                     <p class="muted">${occupancyText(Number(bus.occupancy || 0))}</p>
                     <div style="margin-top: 10px;">${stops}</div>
                 </div>
             `;
+            document.getElementById('passengerOccupancyModule').classList.add('show');
+            document.getElementById('passengerOccupancyModule').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function closeBusOccupancy() {
+            document.getElementById('passengerOccupancyModule').classList.remove('show');
+            document.getElementById('busOccupancyDetail').innerHTML = '';
         }
 
         async function findTrips() {

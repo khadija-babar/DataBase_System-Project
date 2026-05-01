@@ -166,9 +166,17 @@ def initialize_database():
     if not needs_rebuild:
         try:
             route_columns = query_all('PRAGMA table_info(Route)')
-            column_names = {column['name'] for column in route_columns}
+            route_column_names = {column['name'] for column in route_columns}
+            driver_columns = query_all('PRAGMA table_info(Driver)')
+            driver_column_names = {column['name'] for column in driver_columns}
+            required_route_columns = {'route_code', 'platform', 'headway_min', 'headway_max'}
+            required_driver_columns = {'password'}
             route_count = query_one('SELECT COUNT(*) AS total FROM Route')
-            needs_rebuild = 'route_code' not in column_names or route_count['total'] == 0
+            needs_rebuild = (
+                not required_route_columns.issubset(route_column_names)
+                or not required_driver_columns.issubset(driver_column_names)
+                or route_count['total'] == 0
+            )
         except sqlite3.Error:
             needs_rebuild = True
     if not needs_rebuild:
@@ -274,6 +282,22 @@ def index():
 @app.route('/select-role')
 def role_select():
     return render_template('index.html')
+
+
+@app.route('/login')
+def legacy_login():
+    return redirect(url_for('passenger_login'))
+
+
+@app.route('/signup')
+def legacy_signup():
+    return redirect(url_for('signup'))
+
+
+@app.route('/dashboard')
+def legacy_dashboard():
+    return redirect(url_for('passenger_dashboard'))
+
 
 @app.route('/passenger/signup', methods=['GET', 'POST'])
 def signup():

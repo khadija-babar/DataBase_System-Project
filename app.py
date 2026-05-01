@@ -349,7 +349,12 @@ def signup():
 @app.route('/passenger/login', methods=['GET', 'POST'])
 def passenger_login():
     if request.method == 'POST':
-        username = request.form.get('identifier', '').strip()
+        username = (
+            request.form.get('identifier')
+            or request.form.get('username')
+            or request.form.get('email')
+            or ''
+        ).strip()
         password = request.form.get('password', '')
         
         if not username or not password:
@@ -374,9 +379,21 @@ def passenger_login():
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
-        email = request.form.get('email', '').strip()
+        email = (
+            request.form.get('email')
+            or request.form.get('username')
+            or request.form.get('identifier')
+            or ''
+        ).strip()
         password = request.form.get('password', '')
-        admin = query_one('SELECT admin_id, name, email, password FROM Admin WHERE lower(email) = lower(?)', (email,))
+        admin = query_one(
+            '''
+            SELECT admin_id, name, email, password
+            FROM Admin
+            WHERE lower(email) = lower(?) OR lower(name) = lower(?)
+            ''',
+            (email, email)
+        )
         if admin and verify_password(admin['password'], password):
             set_session('admin', admin['admin_id'], admin['name'])
             flash(f'Welcome, {admin["name"]}!', 'success')
@@ -388,17 +405,24 @@ def admin_login():
 @app.route('/driver/login', methods=['GET', 'POST'])
 def driver_login():
     if request.method == 'POST':
-        license_number = request.form.get('license_number', '').strip()
-        password = request.form.get('password', '')
+        license_number = (
+            request.form.get('license_number')
+            or request.form.get('username')
+            or request.form.get('identifier')
+            or ''
+        ).strip()
+        password = request.form.get('password') or request.form.get('phone_number') or ''
         driver = query_one(
             '''
             SELECT driver_id, name, phone_number, license_number, password, status
             FROM Driver
-            WHERE upper(license_number) = upper(?)
+            WHERE upper(license_number) = upper(?) OR lower(name) = lower(?)
             ''',
-            (license_number,)
+            (license_number, license_number)
         )
-        if driver and driver['status'] == 'active' and verify_password(driver['password'], password):
+        password_matches = driver and verify_password(driver['password'], password)
+        phone_matches = driver and driver['phone_number'] and driver['phone_number'] == password
+        if driver and driver['status'] == 'active' and (password_matches or phone_matches):
             set_session('driver', driver['driver_id'], driver['name'])
             flash(f'Welcome, {driver["name"]}!', 'success')
             return redirect(url_for('driver_dashboard'))

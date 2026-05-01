@@ -159,7 +159,7 @@ class GradientShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      minHeight: double.infinity,
+      constraints: const BoxConstraints(minHeight: double.infinity),
       padding: const EdgeInsets.all(24),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -432,7 +432,12 @@ class _PassengerDashboardState extends State<PassengerDashboard> {
                           _balance -= _quote.fare;
                           _tickets.insert(
                             0,
-                            Ticket(_quote.routeCode, _start, _end, _quote.fare),
+                            Ticket(
+                              _quote.routeCode,
+                              _start,
+                              _end,
+                              _quote.fare.toDouble(),
+                            ),
                           );
                           _notifications.insert(
                             0,
@@ -1023,7 +1028,7 @@ class DropdownCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
       items: items
           .map(

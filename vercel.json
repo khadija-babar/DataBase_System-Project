@@ -1,0 +1,12 @@
+{
+  "buildCommand": "if [ ! -d /tmp/flutter ]; then git clone --depth 1 https://github.com/flutter/flutter.git -b stable /tmp/flutter; fi && export PATH=\"$PATH:/tmp/flutter/bin\" && flutter config --enable-web && flutter pub get && flutter build web --release",
+  "outputDirectory": "build/web",
+  "installCommand": "",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

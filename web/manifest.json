@@ -1,0 +1,11 @@
+{
+  "name": "BRT Peshawar",
+  "short_name": "BRT Portal",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#eef8f2",
+  "theme_color": "#0b6b3a",
+  "description": "Flutter web app for the BRT Peshawar management portal.",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}

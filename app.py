@@ -11,12 +11,13 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, 'database.db')
 
 BUS_VIDEO_MAP = {
-    'B-001': 'IMG_8595.MOV',
-    'B-002': 'IMG_8596.MOV',
-    'B-003': 'WhatsApp Video 2026-05-01 at 11.36.03 PM.mp4',
-    'B-004': 'WhatsApp Video 2026-05-01 at 11.36.04 PM.mp4',
-    'B-005': 'WhatsApp Video 2026-05-01 at 11.36.04 PM (1).mp4',
-    'B-006': 'WhatsApp Video 2026-05-01 at 11.36.04 PM (2).mp4',
+    'B-001': 'IMG_5746.mov',
+    'B-002': 'IMG_5747.mov',
+    'B-003': 'IMG_5748.mov',
+    'B-004': 'IMG_5749 (1).mov',
+    'B-005': 'IMG_5749.mov',
+    'B-006': 'IMG_8595.MOV',
+    'B-007': 'IMG_8596.MOV',
 }
 
 

@@ -12,6 +12,9 @@
         nav a { color: white; text-decoration: none; background: #d32f2f; padding: 9px 14px; border-radius: 10px; }
         main { max-width: 1180px; margin: 0 auto; padding: 28px 18px; }
         .hero { background: linear-gradient(135deg, #0b3618, #00a896); color: white; padding: 32px; border-radius: 24px; margin-bottom: 22px; }
+        .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+        .hero-actions button { background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.45); margin-top: 0; }
+        .hero-actions button:hover { background: rgba(255,255,255,.28); }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
         .card { background: white; border-radius: 18px; padding: 22px; box-shadow: 0 12px 30px rgba(0,0,0,.08); }
         h2, h3 { margin-bottom: 14px; color: #0b3618; }
@@ -29,6 +32,7 @@
         .progress span { display: block; height: 100%; background: linear-gradient(90deg, #00a896, #0b3618); }
         .occupancy-detail { margin-top: 14px; padding: 14px; background: #eef9f6; border-radius: 14px; border: 1px solid #cbe7df; }
         .badge { display: inline-block; padding: 4px 9px; border-radius: 999px; background: #e8f5e9; color: #2e7d32; font-weight: 700; font-size: 12px; margin: 3px; }
+        .portal-feature { border: 2px solid #00a896; }
     </style>
 </head>
 <body>
@@ -39,7 +43,11 @@
     <main>
         <section class="hero">
             <h1>Welcome, {{ user_name }}</h1>
-            <p>Plan your trip, book tickets, recharge your card, and submit support requests.</p>
+            <p>Plan your trip, check bus occupancy before boarding, book tickets, recharge your card, and submit support requests.</p>
+            <div class="hero-actions">
+                <button onclick="scrollToOccupancy()"><i class="fas fa-users"></i> Check Bus Occupancy</button>
+                <button onclick="document.getElementById('startStation').scrollIntoView({behavior:'smooth'})"><i class="fas fa-route"></i> Plan Trip</button>
+            </div>
         </section>
 
         <section class="grid">
@@ -74,9 +82,9 @@
                 <button onclick="submitComplaint()">Submit Complaint</button>
             </div>
 
-            <div class="card">
-                <h2>Bus Occupancy</h2>
-                <p class="muted">Tap a bus to view route and passenger load before travelling.</p>
+            <div class="card portal-feature" id="occupancyFeature">
+                <h2><i class="fas fa-users"></i> Bus Occupancy</h2>
+                <p class="muted">Passenger portal feature: tap a bus to view route and passenger load before travelling.</p>
                 <div id="busOccupancy">Loading buses...</div>
                 <div id="busOccupancyDetail"></div>
             </div>
@@ -108,6 +116,9 @@
 
         function money(value) { return `PKR ${Number(value || 0).toFixed(0)}`; }
         function item(html) { return `<div class="list-item">${html}</div>`; }
+        function scrollToOccupancy() {
+            document.getElementById('occupancyFeature').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
         function occupancyText(value) {
             if (value >= 75) return 'High occupancy';
             if (value >= 45) return 'Medium occupancy';
@@ -174,8 +185,26 @@
             const end = document.getElementById('endStation').value;
             const trips = await api(`/api/passenger/trips?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`);
             document.getElementById('tripResults').innerHTML = trips.length
-                ? trips.map(t => `<div class="route-card"><strong>${t.route_name}</strong><br>Platform ${t.platform} - ${t.stop_count} stops - ${money(t.fare)}<br><span class="muted">Every ${t.headway_min}-${t.headway_max} min</span><br><button onclick='bookTicket(${JSON.stringify(t)}, "${start}", "${end}")'>Book Ticket</button></div>`).join('')
+                ? trips.map(t => `<div class="route-card"><strong>${t.route_name}</strong><br>Platform ${t.platform} - ${t.stop_count} stops - ${money(t.fare)}<br><span class="muted">Every ${t.headway_min}-${t.headway_max} min</span><br><button onclick='bookTicket(${JSON.stringify(t)}, "${start}", "${end}")'>Book Ticket</button> <button onclick="filterOccupancyByRoute(${t.route_id}, '${t.route_name.replace(/'/g, "\\'")}')">View Bus Occupancy</button></div>`).join('')
                 : '<p class="muted">No direct route found.</p>';
+        }
+
+        async function filterOccupancyByRoute(routeId, routeName) {
+            const buses = await api(`/api/passenger/bus-occupancy?route_id=${routeId}`);
+            document.getElementById('busOccupancy').innerHTML = buses.length
+                ? `<p class="muted">Showing buses for ${routeName}</p>` + buses.map(bus => {
+                    const occupancy = Number(bus.occupancy || 0);
+                    return `
+                        <div class="bus-card" onclick="showBusOccupancy(${bus.bus_id})">
+                            <strong>${bus.bus_number}</strong> - ${bus.route_name || 'Route not assigned'}<br>
+                            <span class="muted">Platform ${bus.platform || '-'} | Every ${bus.headway_min || '-'}-${bus.headway_max || '-'} min</span>
+                            <div class="progress"><span style="width:${occupancy}%"></span></div>
+                            <strong>${occupancy}%</strong> <span class="muted">${occupancyText(occupancy)}</span>
+                        </div>
+                    `;
+                }).join('')
+                : `<p class="muted">No active buses found for ${routeName}.</p>`;
+            scrollToOccupancy();
         }
 
         async function bookTicket(route, start, end) {

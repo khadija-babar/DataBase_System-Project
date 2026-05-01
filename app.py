@@ -585,7 +585,84 @@ def api_capacity():
 @app.get('/api/passenger/bus-occupancy')
 @api_role_required('passenger')
 def api_passenger_bus_occupancy():
-    return api_capacity()
+    route_id = request.args.get('route_id', type=int)
+    params = []
+    route_filter = ''
+    if route_id:
+        route_filter = ' AND r.route_id = ?'
+        params.append(route_id)
+
+    buses = query_all(
+        f'''
+        SELECT
+            b.bus_id,
+            b.bus_number,
+            b.capacity,
+            b.current_passengers,
+            b.status,
+            r.route_id,
+            r.route_code,
+            r.route_name,
+            r.platform,
+            r.headway_min,
+            r.headway_max,
+            ROUND((b.current_passengers * 100.0) / b.capacity, 0) AS occupancy
+        FROM Bus b
+        JOIN Schedule s ON s.bus_id = b.bus_id
+        JOIN Route r ON r.route_id = s.route_id
+        WHERE b.status = 'active'
+          AND s.status IN ('scheduled', 'active')
+          {route_filter}
+        GROUP BY b.bus_id
+        ORDER BY r.route_code, b.bus_number
+        ''',
+        tuple(params)
+    )
+    return jsonify(buses)
+
+
+@app.get('/api/passenger/bus-occupancy/<int:bus_id>')
+@api_role_required('passenger')
+def api_passenger_bus_occupancy_detail(bus_id):
+    bus = query_one(
+        '''
+        SELECT
+            b.bus_id,
+            b.bus_number,
+            b.capacity,
+            b.current_passengers,
+            b.status,
+            r.route_id,
+            r.route_code,
+            r.route_name,
+            r.platform,
+            r.headway_min,
+            r.headway_max,
+            ROUND((b.current_passengers * 100.0) / b.capacity, 0) AS occupancy
+        FROM Bus b
+        JOIN Schedule s ON s.bus_id = b.bus_id
+        JOIN Route r ON r.route_id = s.route_id
+        WHERE b.bus_id = ?
+          AND b.status = 'active'
+          AND s.status IN ('scheduled', 'active')
+        LIMIT 1
+        ''',
+        (bus_id,)
+    )
+    if not bus:
+        return jsonify({'error': 'Bus occupancy is not available'}), 404
+
+    route_stops = query_all(
+        '''
+        SELECT st.station_name, rs.stop_order
+        FROM Route_Station rs
+        JOIN Station st ON st.station_id = rs.station_id
+        WHERE rs.route_id = ?
+        ORDER BY rs.stop_order
+        ''',
+        (bus['route_id'],)
+    )
+    return jsonify({'bus': bus, 'route_stops': route_stops})
 
 
 @app.get('/api/me')

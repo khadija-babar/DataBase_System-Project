@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import inspect
 from functools import wraps
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
@@ -24,11 +25,27 @@ BUS_VIDEO_MAP = {
 }
 
 
-def analyze_bus_video_for_capacity(bus):
+def _run_video_analyzer(video_path, bus_capacity, analysis_mode):
+    signature = inspect.signature(analyze_video_capacity)
+    kwargs = {'bus_capacity': bus_capacity}
+    for option_name in ('analysis_mode', 'mode', 'choice', 'result_type', 'gender'):
+        if option_name in signature.parameters:
+            kwargs[option_name] = analysis_mode
+            break
+    return analyze_video_capacity(video_path, **kwargs)
+
+
+def analyze_bus_video_for_capacity(bus, analysis_mode='combined'):
+    analysis_mode = (analysis_mode or 'combined').lower()
+    if analysis_mode not in {'male', 'female', 'combined'}:
+        analysis_mode = 'combined'
+
     video_name = BUS_VIDEO_MAP.get(bus['bus_number'])
     if not video_name:
         return {
             'video_file': None,
+            'analysis_type': analysis_mode,
+            'analysis_mode': analysis_mode,
             'people_count': bus['current_passengers'],
             'capacity': bus['capacity'],
             'available_seats': max(bus['capacity'] - bus['current_passengers'], 0),
@@ -39,9 +56,9 @@ def analyze_bus_video_for_capacity(bus):
 
     video_path = os.path.join(BASE_DIR, video_name)
     try:
-        result = analyze_video_capacity(video_path, bus['capacity'])
+        result = _run_video_analyzer(video_path, bus['capacity'], analysis_mode)
         source = 'video'
-        message = 'Video analysis completed.'
+        message = f'{analysis_mode.title()} video analysis completed.'
     except Exception as exc:
         result = {
             'people_count': bus['current_passengers'],
@@ -55,6 +72,8 @@ def analyze_bus_video_for_capacity(bus):
 
     return {
         'video_file': video_name,
+        'analysis_type': analysis_mode,
+        'analysis_mode': analysis_mode,
         **result,
         'source': source,
         'message': message
@@ -714,7 +733,13 @@ def api_passenger_bus_occupancy_detail(bus_id):
         ''',
         (bus['route_id'],)
     )
-    video_analysis = analyze_bus_video_for_capacity(bus)
+    analysis_mode = (
+        request.args.get('analysis_type')
+        or request.args.get('mode')
+        or request.args.get('choice')
+        or 'combined'
+    )
+    video_analysis = analyze_bus_video_for_capacity(bus, analysis_mode)
     return jsonify({'bus': bus, 'route_stops': route_stops, 'video_analysis': video_analysis})
 
 

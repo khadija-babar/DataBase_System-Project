@@ -135,18 +135,24 @@
             if (value >= 45) return 'Medium occupancy';
             return 'Seats available';
         }
+        function analysisLabel(value) {
+            if (value === 'male') return 'Male';
+            if (value === 'female') return 'Female';
+            return 'Combined';
+        }
         function videoInfo(analysis) {
             if (!analysis) return '<p class="muted">Video analysis is not available for this bus yet.</p>';
             const occupancy = analysis.occupancy_percent ?? analysis.occupancy ?? 0;
             const message = analysis.message || analysis.note || '';
             return `
                 <div class="occupancy-detail">
-                    <h3><i class="fas fa-video"></i> Video-Based Count</h3>
+                    <h3><i class="fas fa-video"></i> ${analysisLabel(analysis.analysis_mode)} Video Count</h3>
                     <div class="stats-row">
                         <div class="stat-box"><strong>${analysis.people_count}</strong><span class="muted">People Counted</span></div>
                         <div class="stat-box"><strong>${analysis.capacity}</strong><span class="muted">Bus Capacity</span></div>
                         <div class="stat-box"><strong>${occupancy}%</strong><span class="muted">Video Occupancy</span></div>
                     </div>
+                    <p class="muted">Standing: ${analysis.standing ?? '-'} | Seated: ${analysis.seated ?? '-'}</p>
                     <p class="muted">Video: ${analysis.video_file || 'No video assigned'}</p>
                     <p class="muted">Source: ${analysis.source}</p>
                     ${message ? `<p class="muted">${message}</p>` : ''}
@@ -192,8 +198,20 @@
                 : '<p class="muted">No active buses available.</p>';
         }
 
-        async function showBusOccupancy(busId) {
-            const data = await api(`/api/passenger/bus-occupancy/${busId}`);
+        function analysisControls(busId) {
+            return `
+                <div class="occupancy-detail">
+                    <h3>Choose occupancy view</h3>
+                    <p class="muted">Select which result you want to see for this bus video.</p>
+                    <button onclick="showBusOccupancy(${busId}, 'male')">Male</button>
+                    <button onclick="showBusOccupancy(${busId}, 'female')">Female</button>
+                    <button onclick="showBusOccupancy(${busId}, 'combined')">Combined</button>
+                </div>
+            `;
+        }
+
+        async function showBusOccupancy(busId, analysisType = 'combined') {
+            const data = await api(`/api/passenger/bus-occupancy/${busId}?analysis_type=${analysisType}`);
             const bus = data.bus;
             const stops = data.route_stops.length
                 ? data.route_stops.map(stop => `<span class="badge">${stop.stop_order}. ${stop.station_name}</span>`).join(' ')
@@ -210,6 +228,7 @@
                     <p class="muted">${occupancyText(Number(bus.occupancy || 0))}</p>
                     <div style="margin-top: 10px;">${stops}</div>
                 </div>
+                ${analysisControls(bus.bus_id)}
                 ${videoInfo(data.video_analysis)}
             `;
             document.getElementById('passengerOccupancyModule').classList.add('show');

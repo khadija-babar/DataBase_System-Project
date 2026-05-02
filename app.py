@@ -5,7 +5,7 @@ import io
 from contextlib import redirect_stdout
 from functools import wraps
 
-from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import Bus_Project
@@ -25,6 +25,12 @@ BUS_VIDEO_MAP = {
     'B-009': 'WhatsApp Video 2026-05-01 at 11.36.04 PM (2).mp4',
     'B-010': 'WhatsApp Video 2026-05-01 at 11.36.04 PM.mp4',
 }
+
+
+def _video_url(video_name):
+    if not video_name:
+        return None
+    return url_for('serve_bus_video', filename=video_name)
 
 
 def _run_video_analyzer(video_path, bus_capacity, analysis_mode):
@@ -71,6 +77,29 @@ def _format_video_result(result, label, video_name):
     )
 
 
+def _normalize_video_result(result):
+    total = result.get('total_passengers', result.get('total_unique', result.get('people_count', 0)))
+    standing = result.get('standing_passengers', result.get('standing', 0))
+    sitting = result.get('sitting_passengers', result.get('seated', 0))
+    capacity = result.get('capacity', 0)
+    occupancy = result.get('occupancy_percentage', result.get('occupancy_percent', 0))
+
+    return {
+        'total_passengers': total,
+        'male_count': result.get('male_count', result.get('male', None)),
+        'female_count': result.get('female_count', result.get('female', None)),
+        'sitting_passengers': sitting,
+        'standing_passengers': standing,
+        'occupancy_percentage': occupancy,
+        'people_count': total,
+        'standing': standing,
+        'seated': sitting,
+        'capacity': capacity,
+        'available_seats': result.get('available_seats', max(int(capacity or 0) - int(total or 0), 0)),
+        'occupancy_percent': occupancy,
+    }
+
+
 def analyze_bus_video_for_capacity(bus, analysis_mode='combined'):
     analysis_mode = (analysis_mode or 'combined').lower()
     if analysis_mode not in {'male', 'female', 'combined'}:
@@ -90,6 +119,7 @@ def analyze_bus_video_for_capacity(bus, analysis_mode='combined'):
             'source': 'database',
             'message': 'No video has been assigned to this bus yet.'
         }
+        result.update(_normalize_video_result(result))
         result['display_text'] = _format_video_result(result, label, None)
         return result
 
@@ -109,8 +139,11 @@ def analyze_bus_video_for_capacity(bus, analysis_mode='combined'):
         source = 'database_fallback'
         message = f'Video analysis unavailable: {exc}'
 
+    result.update(_normalize_video_result({**result, 'capacity': result.get('capacity', bus['capacity'])}))
+    video_url = url_for('api_passenger_bus_video', bus_id=bus['bus_id']) if video_name else None
     return {
         'video_file': video_name,
+        'video_url': video_url,
         'analysis_type': analysis_mode,
         'analysis_mode': analysis_mode,
         **result,
@@ -781,6 +814,22 @@ def api_passenger_bus_occupancy_detail(bus_id):
     )
     video_analysis = analyze_bus_video_for_capacity(bus, analysis_mode)
     return jsonify({'bus': bus, 'route_stops': route_stops, 'video_analysis': video_analysis})
+
+
+@app.get('/api/passenger/bus-video/<int:bus_id>')
+@api_role_required('passenger')
+def api_passenger_bus_video(bus_id):
+    bus = query_one('SELECT bus_number FROM Bus WHERE bus_id = ?', (bus_id,))
+    if not bus:
+        return jsonify({'error': 'Bus not found'}), 404
+
+    video_name = BUS_VIDEO_MAP.get(bus['bus_number'])
+    if not video_name:
+        return jsonify({'error': 'No video mapped for this bus'}), 404
+    if not os.path.exists(os.path.join(BASE_DIR, video_name)):
+        return jsonify({'error': f'Video file not found: {video_name}'}), 404
+
+    return send_from_directory(BASE_DIR, video_name)
 
 
 @app.get('/api/me')

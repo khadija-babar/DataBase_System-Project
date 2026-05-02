@@ -31,6 +31,7 @@
         .progress { height: 10px; background: #dce8e2; border-radius: 999px; overflow: hidden; margin: 10px 0; }
         .progress span { display: block; height: 100%; background: linear-gradient(90deg, #00a896, #0b3618); }
         .occupancy-detail { margin-top: 14px; padding: 14px; background: #eef9f6; border-radius: 14px; border: 1px solid #cbe7df; }
+        .bus-video { width: 100%; max-height: 420px; background: #0b3618; border-radius: 14px; margin-top: 12px; }
         .badge { display: inline-block; padding: 4px 9px; border-radius: 999px; background: #e8f5e9; color: #2e7d32; font-weight: 700; font-size: 12px; margin: 3px; }
         .occupancy-module { display: none; border: 2px solid #00a896; margin-top: 18px; }
         .occupancy-module.show { display: block; }
@@ -148,13 +149,20 @@
             const rawOutput = busProjectOutput
                 ? `<pre style="white-space: pre-wrap; background:#0b3618; color:white; padding:12px; border-radius:12px; margin-top:10px;">${busProjectOutput}</pre>`
                 : '';
+            const videoPlayer = analysis.video_url
+                ? `<video class="bus-video" controls autoplay muted playsinline src="${analysis.video_url}"></video>`
+                : '<p class="muted">Mapped video file is not available to play.</p>';
             return `
                 <div class="occupancy-detail">
                     <h3><i class="fas fa-video"></i> ${analysisLabel(analysis.analysis_mode)} Bus_Project.py Result</h3>
+                    ${videoPlayer}
                     <div class="stats-row">
-                        <div class="stat-box"><strong>${analysis.people_count}</strong><span class="muted">Total Unique Passengers</span></div>
-                        <div class="stat-box"><strong>${analysis.capacity}</strong><span class="muted">Bus Capacity</span></div>
-                        <div class="stat-box"><strong>${analysis.available_seats ?? '-'}</strong><span class="muted">Available Seats</span></div>
+                        <div class="stat-box"><strong>${analysis.total_passengers ?? analysis.people_count}</strong><span class="muted">Total Passengers</span></div>
+                        <div class="stat-box"><strong>${analysis.male_count ?? '-'}</strong><span class="muted">Male Count</span></div>
+                        <div class="stat-box"><strong>${analysis.female_count ?? '-'}</strong><span class="muted">Female Count</span></div>
+                        <div class="stat-box"><strong>${analysis.sitting_passengers ?? analysis.seated ?? '-'}</strong><span class="muted">Sitting Passengers</span></div>
+                        <div class="stat-box"><strong>${analysis.standing_passengers ?? analysis.standing ?? '-'}</strong><span class="muted">Standing Passengers</span></div>
+                        <div class="stat-box"><strong>${analysis.occupancy_percentage ?? occupancy}%</strong><span class="muted">Occupancy Percentage</span></div>
                     </div>
                     <p class="muted">Seconds Analysed: ${analysis.seconds_analyzed ?? '-'}</p>
                     <p class="muted">Standing: ${analysis.standing ?? '-'} | Seated (derived): ${analysis.seated ?? '-'}</p>

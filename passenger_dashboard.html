@@ -144,18 +144,25 @@
             if (!analysis) return '<p class="muted">Video analysis is not available for this bus yet.</p>';
             const occupancy = analysis.occupancy_percent ?? analysis.occupancy ?? 0;
             const message = analysis.message || analysis.note || '';
+            const busProjectOutput = analysis.display_text || analysis.raw_output;
+            const rawOutput = busProjectOutput
+                ? `<pre style="white-space: pre-wrap; background:#0b3618; color:white; padding:12px; border-radius:12px; margin-top:10px;">${busProjectOutput}</pre>`
+                : '';
             return `
                 <div class="occupancy-detail">
-                    <h3><i class="fas fa-video"></i> ${analysisLabel(analysis.analysis_mode)} Video Count</h3>
+                    <h3><i class="fas fa-video"></i> ${analysisLabel(analysis.analysis_mode)} Bus_Project.py Result</h3>
                     <div class="stats-row">
-                        <div class="stat-box"><strong>${analysis.people_count}</strong><span class="muted">People Counted</span></div>
+                        <div class="stat-box"><strong>${analysis.people_count}</strong><span class="muted">Total Unique Passengers</span></div>
                         <div class="stat-box"><strong>${analysis.capacity}</strong><span class="muted">Bus Capacity</span></div>
-                        <div class="stat-box"><strong>${occupancy}%</strong><span class="muted">Video Occupancy</span></div>
+                        <div class="stat-box"><strong>${analysis.available_seats ?? '-'}</strong><span class="muted">Available Seats</span></div>
                     </div>
-                    <p class="muted">Standing: ${analysis.standing ?? '-'} | Seated: ${analysis.seated ?? '-'}</p>
-                    <p class="muted">Video: ${analysis.video_file || 'No video assigned'}</p>
-                    <p class="muted">Source: ${analysis.source}</p>
+                    <p class="muted">Seconds Analysed: ${analysis.seconds_analyzed ?? '-'}</p>
+                    <p class="muted">Standing: ${analysis.standing ?? '-'} | Seated (derived): ${analysis.seated ?? '-'}</p>
+                    <p class="muted">Occupancy: ${occupancy}%</p>
+                    <p class="muted">Snapshot: ${analysis.snapshot_path || 'Not saved'}</p>
+                    <p class="muted">Video: ${analysis.video_file || 'No video assigned'} | Source: ${analysis.source}</p>
                     ${message ? `<p class="muted">${message}</p>` : ''}
+                    ${rawOutput}
                 </div>
             `;
         }

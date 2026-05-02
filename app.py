@@ -1,12 +1,14 @@
 import os
 import sqlite3
 import inspect
+import io
+from contextlib import redirect_stdout
 from functools import wraps
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from Bus_Project import analyze_video_capacity
+import Bus_Project
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, 'database.db')
@@ -26,23 +28,58 @@ BUS_VIDEO_MAP = {
 
 
 def _run_video_analyzer(video_path, bus_capacity, analysis_mode):
-    signature = inspect.signature(analyze_video_capacity)
+    if not hasattr(Bus_Project, 'analyze_video_capacity'):
+        raise RuntimeError('Bus_Project.py must provide analyze_video_capacity(video_path, bus_capacity=80).')
+
+    analyzer = Bus_Project.analyze_video_capacity
+    signature = inspect.signature(analyzer)
     kwargs = {'bus_capacity': bus_capacity}
     for option_name in ('analysis_mode', 'mode', 'choice', 'result_type', 'gender'):
         if option_name in signature.parameters:
             kwargs[option_name] = analysis_mode
             break
-    return analyze_video_capacity(video_path, **kwargs)
+
+    captured_output = io.StringIO()
+    with redirect_stdout(captured_output):
+        result = analyzer(video_path, **kwargs)
+
+    if result is None:
+        result = {}
+    if not isinstance(result, dict):
+        result = {'raw_result': str(result)}
+
+    printed_output = captured_output.getvalue().strip()
+    if printed_output:
+        result['raw_output'] = printed_output
+    return result
+
+
+def _format_video_result(result, label, video_name):
+    if result.get('raw_output'):
+        return result['raw_output']
+
+    return (
+        f"===== {label.upper()} HYBRID RESULT =====\n"
+        f"Seconds Analysed        : {result.get('seconds_analyzed', '-')}\n"
+        f"Total Unique Passengers : {result.get('people_count', '-')}\n"
+        f"Standing                : {result.get('standing', '-')}\n"
+        f"Seated (derived)        : {result.get('seated', '-')}\n"
+        f"Bus Capacity            : {result.get('capacity', '-')}\n"
+        f"Available Seats         : {result.get('available_seats', '-')}\n"
+        f"Occupancy Percent       : {result.get('occupancy_percent', '-')}%\n"
+        f"Video Used              : {video_name or 'No video assigned'}"
+    )
 
 
 def analyze_bus_video_for_capacity(bus, analysis_mode='combined'):
     analysis_mode = (analysis_mode or 'combined').lower()
     if analysis_mode not in {'male', 'female', 'combined'}:
         analysis_mode = 'combined'
+    label = {'male': 'Male', 'female': 'Female', 'combined': 'Combined'}[analysis_mode]
 
     video_name = BUS_VIDEO_MAP.get(bus['bus_number'])
     if not video_name:
-        return {
+        result = {
             'video_file': None,
             'analysis_type': analysis_mode,
             'analysis_mode': analysis_mode,
@@ -53,6 +90,8 @@ def analyze_bus_video_for_capacity(bus, analysis_mode='combined'):
             'source': 'database',
             'message': 'No video has been assigned to this bus yet.'
         }
+        result['display_text'] = _format_video_result(result, label, None)
+        return result
 
     video_path = os.path.join(BASE_DIR, video_name)
     try:
@@ -76,7 +115,8 @@ def analyze_bus_video_for_capacity(bus, analysis_mode='combined'):
         'analysis_mode': analysis_mode,
         **result,
         'source': source,
-        'message': message
+        'message': message,
+        'display_text': _format_video_result({**result, 'capacity': result.get('capacity', bus['capacity'])}, label, video_name)
     }
 
 app = Flask(__name__, template_folder=BASE_DIR)

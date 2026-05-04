@@ -5,60 +5,8 @@ from functools import wraps
 from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from Bus_Project import analyze_video_capacity
-
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, 'database.db')
-
-BUS_VIDEO_MAP = {
-    'B-001': 'IMG_5746.mov',
-    'B-002': 'IMG_5747.mov',
-    'B-003': 'IMG_5748.mov',
-    'B-004': 'IMG_5749.mov',
-    'B-005': 'IMG_8595.MOV',
-    'B-006': 'IMG 8596.MOV',
-    'B-007': 'WhatsApp Video 2026-05-01 at 11.36.03 PM.mp4',
-    'B-008': 'WhatsApp Video 2026-05-01 at 11.36.04 PM (1).mp4',
-    'B-009': 'WhatsApp Video 2026-05-01 at 11.36.04 PM (2).mp4',
-    'B-010': 'WhatsApp Video 2026-05-01 at 11.36.04 PM.mp4',
-}
-
-
-def analyze_bus_video_for_capacity(bus):
-    video_name = BUS_VIDEO_MAP.get(bus['bus_number'])
-    if not video_name:
-        return {
-            'video_file': None,
-            'people_count': bus['current_passengers'],
-            'capacity': bus['capacity'],
-            'available_seats': max(bus['capacity'] - bus['current_passengers'], 0),
-            'occupancy_percent': bus['occupancy'],
-            'source': 'database',
-            'message': 'No video has been assigned to this bus yet.'
-        }
-
-    video_path = os.path.join(BASE_DIR, video_name)
-    try:
-        result = analyze_video_capacity(video_path, bus['capacity'])
-        source = 'video'
-        message = 'Video analysis completed.'
-    except Exception as exc:
-        result = {
-            'people_count': bus['current_passengers'],
-            'capacity': bus['capacity'],
-            'available_seats': max(bus['capacity'] - bus['current_passengers'], 0),
-            'occupancy_percent': bus['occupancy'],
-            'sampled_frames': 0,
-        }
-        source = 'database_fallback'
-        message = f'Video analysis unavailable: {exc}'
-
-    return {
-        'video_file': video_name,
-        **result,
-        'source': source,
-        'message': message
-    }
 
 app = Flask(__name__, template_folder=BASE_DIR)
 app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
@@ -318,7 +266,9 @@ def set_session(role, user_id, name):
     session['user_id'] = user_id
     session['username'] = name
 
-# Routes
+
+# ─── Routes ──────────────────────────────────────────────────────────────────
+
 @app.route('/')
 def index():
     role = session.get('role')
@@ -359,29 +309,28 @@ def signup():
         phone_number = request.form.get('phone_number', '').strip()
         password = request.form.get('password', '')
         confirm_password = request.form.get('confirm_password', '')
-        
-        # Validation
+
         if not username or not email or not password:
             flash('All fields are required', 'error')
             return render_template('passenger_signup.html')
-        
+
         if password != confirm_password:
             flash('Passwords do not match', 'error')
             return render_template('passenger_signup.html')
-        
+
         if len(password) < 6:
             flash('Password must be at least 6 characters', 'error')
             return render_template('passenger_signup.html')
-        
+
         existing_user = query_one(
             'SELECT passenger_id FROM Passenger WHERE lower(name) = lower(?) OR lower(email) = lower(?)',
             (username, email)
         )
-        
+
         if existing_user:
             flash('Username or email already exists', 'error')
             return render_template('passenger_signup.html')
-        
+
         try:
             execute(
                 '''
@@ -392,11 +341,12 @@ def signup():
             )
             flash('Account created successfully! Please login.', 'success')
             return redirect(url_for('passenger_login'))
-        except Exception as e:
+        except Exception:
             flash('Error creating account. Please try again.', 'error')
             return render_template('passenger_signup.html')
-    
+
     return render_template('passenger_signup.html')
+
 
 @app.route('/passenger/login', methods=['GET', 'POST'])
 def passenger_login():
@@ -408,16 +358,16 @@ def passenger_login():
             or ''
         ).strip()
         password = request.form.get('password', '')
-        
+
         if not username or not password:
             flash('Please enter username and password', 'error')
             return render_template('passenger_login.html')
-        
+
         passenger = query_one(
             'SELECT passenger_id, name, password FROM Passenger WHERE lower(name) = lower(?) OR lower(email) = lower(?)',
             (username, username)
         )
-        
+
         if passenger and verify_password(passenger['password'], password):
             set_session('passenger', passenger['passenger_id'], passenger['name'])
             flash(f'Welcome back, {passenger["name"]}!', 'success')
@@ -425,8 +375,9 @@ def passenger_login():
         else:
             flash('Invalid username or password', 'error')
             return render_template('passenger_login.html')
-    
+
     return render_template('passenger_login.html')
+
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
@@ -494,17 +445,13 @@ def admin_dashboard():
     return render_template('admin_dashboard.html', username=session.get('username'))
 
 
-@app.route('/admin/bus-occupancy/<int:bus_id>')
-@role_required('admin')
-def admin_bus_occupancy(bus_id):
-    return render_template('bus_occupancy.html', username=session.get('username'), bus_id=bus_id)
-
-
 @app.route('/driver/dashboard')
 @role_required('driver')
 def driver_dashboard():
     return render_template('driver_dashboard.html', username=session.get('username'))
 
+
+# ─── Passenger APIs ───────────────────────────────────────────────────────────
 
 @app.get('/api/stations')
 @api_role_required('passenger')
@@ -714,8 +661,26 @@ def api_passenger_bus_occupancy_detail(bus_id):
         ''',
         (bus['route_id'],)
     )
-    video_analysis = analyze_bus_video_for_capacity(bus)
-    return jsonify({'bus': bus, 'route_stops': route_stops, 'video_analysis': video_analysis})
+
+    cap = int(bus['capacity'] or 0)
+    total = int(bus['current_passengers'] or 0)
+    occ = round((total * 100.0) / cap, 0) if cap else 0
+    avail = max(cap - total, 0)
+
+    occupancy_stats = {
+        'total_passengers': total,
+        'capacity': cap,
+        'available_seats': avail,
+        'occupancy_percentage': occ,
+        'source': 'database',
+        'message': 'Live passenger count from fleet records.',
+    }
+
+    return jsonify({
+        'bus': bus,
+        'route_stops': route_stops,
+        'occupancy_stats': occupancy_stats,
+    })
 
 
 @app.get('/api/me')
@@ -913,6 +878,8 @@ def api_passenger_notifications():
     return jsonify(notifications)
 
 
+# ─── Driver APIs ──────────────────────────────────────────────────────────────
+
 @app.get('/api/driver/overview')
 @api_role_required('driver')
 def api_driver_overview():
@@ -984,6 +951,8 @@ def api_update_schedule_status(schedule_id):
     )
     return jsonify({'schedule_id': schedule_id, 'status': status, 'updated': updated})
 
+
+# ─── Admin APIs ───────────────────────────────────────────────────────────────
 
 @app.get('/api/admin/overview')
 @api_role_required('admin')
@@ -1243,11 +1212,13 @@ def api_admin_respond_complaint(complaint_id):
         conn.commit()
     return jsonify({'complaint_id': complaint_id, 'status': status})
 
+
 @app.route('/logout')
 def logout():
     session.clear()
     flash('You have been logged out', 'info')
     return redirect(url_for('index'))
+
 
 initialize_database()
 

@@ -32,13 +32,13 @@ Each role has its own login page and dashboard. The frontend is designed for nor
 
 ### Passenger/User
 
-- Separate passenger login and signup
+- Separate passenger login and signup is there
 - Trip planner using stations and routes
 - Fare calculation
 - Ticket booking
 - Balance and recent tickets
 - Notifications
-- Complaint submission
+- Complaint submission module
 
 ### Driver
 

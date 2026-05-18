@@ -186,13 +186,38 @@
                 { key: 'departure_time', label: 'Departure' },
                 { key: 'status', label: 'Status' }
             ], 'No schedules found.');
-            document.getElementById('complaints').innerHTML = renderTable(data.complaints, [
-                { key: 'passenger_name', label: 'Passenger' },
-                { key: 'complaint_text', label: 'Complaint' },
-                { key: 'status', label: 'Status' },
-                { key: 'created_at', label: 'Created' }
-            ], 'No open complaints.');
+            document.getElementById('complaints').innerHTML = data.complaints.length
+    ? data.complaints.map(c => `
+        <div style="border:1px solid #dfe9e4; border-radius:12px; padding:14px; margin-bottom:10px;">
+            <strong>${c.passenger_name}</strong> 
+            <span class="badge">${c.status}</span>
+            <span style="color:#728077; font-size:13px;">${c.created_at}</span>
+            <p style="margin:8px 0;">${c.complaint_text}</p>
+            <textarea id="response_${c.complaint_id}" 
+                placeholder="Type your response..." 
+                style="width:100%;padding:8px;border-radius:8px;border:1px solid #ccc;margin-top:6px;">
+            </textarea>
+            <button class="primary" style="margin-top:8px;" 
+                onclick="respondComplaint(${c.complaint_id})">
+                Send Response
+            </button>
+        </div>`).join('')
+    : '<div class="empty">No open complaints.</div>';
         }
+        async function respondComplaint(complaintId) {
+    const response = document.getElementById(`response_${complaintId}`).value.trim();
+    if (!response) { alert('Please write a response first.'); return; }
+    try {
+        await api(`/api/admin/complaints/${complaintId}/respond`, {
+            method: 'POST',
+            body: JSON.stringify({ response_text: response, status: 'resolved' })
+        });
+        alert('Response sent!');
+        loadDashboard();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
         Promise.all([loadDashboard(), loadBuses()]).catch(error => alert(error.message));
     </script>
 </body>

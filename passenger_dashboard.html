@@ -270,14 +270,23 @@
         }
 
         async function submitComplaint() {
-            await api('/api/passenger/complaints', {
-                method: 'POST',
-                body: JSON.stringify({ complaint_text: document.getElementById('complaintText').value })
-            });
-            document.getElementById('complaintText').value = '';
-            alert('Complaint submitted.');
-            loadPassenger();
-        }
+    const text = document.getElementById('complaintText').value.trim();
+    if (text.length < 10) {
+        alert('Complaint must be at least 10 characters.');
+        return;
+    }
+    try {
+        await api('/api/passenger/complaints', {
+            method: 'POST',
+            body: JSON.stringify({ complaint_text: text })
+        });
+        document.getElementById('complaintText').value = '';
+        alert('Complaint submitted successfully!');
+        loadPassenger();
+    } catch (err) {
+        alert('Failed to submit: ' + err.message);
+    }
+}
 
         Promise.all([loadStations(), loadPassenger(), loadBusOccupancy()]).catch(err => alert(err.message));
     </script>

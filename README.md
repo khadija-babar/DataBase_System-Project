@@ -1,8 +1,6 @@
 # BRT Role-Based Management System
 
 ## Overview
-# BRT Role-Based Management System
-
 ## Group Number
 **Group 13**
 

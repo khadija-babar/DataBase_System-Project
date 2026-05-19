@@ -1,7 +1,80 @@
 # BRT Role-Based Management System
 
 ## Overview
+# BRT Role-Based Management System
 
+## Group Number
+**Group 13**
+
+## Group Members
+
+| Name | Roll Number |
+|---|---|
+| Khadija Babar | 23P-0509 |
+| Hifza Akhunzada | 23P-0529 |
+| Syed Maaz Ahmad | 24P-0757 |
+
+## Project Title & Description
+
+**BRT Role-Based Management System**
+
+A full-stack web application for managing a Bus Rapid Transit (BRT) system. It supports three roles  Passenger, Driver, and Admin each with a dedicated login and dashboard. Passengers can plan trips, calculate fares, book tickets, recharge their card balance, and submit complaints. Drivers can view their assigned schedules and update status. Admins can monitor the entire system, respond to complaints, and send notifications.
+
+## GitHub Repository URL
+
+[https://github.com/khadija-babar/DataBase_System-Project](https://github.com/khadija-babar/DataBase_System-Project)
+
+## Technologies Used
+
+| Layer | Technology |
+|---|---|
+| Backend | Python 3, Flask |
+| Database | SQLite3 |
+| DB Access | sqlite3 (built-in), Werkzeug (password hashing) |
+| Frontend | HTML, CSS, JavaScript |
+| Schema & Seed Data | SQL (group13.sql) |
+| Deployment | Vercel |
+
+## Installation & Running the Application
+
+### Prerequisites
+- Python 3.8 or higher installed
+- pip (Python package manager)
+
+### Steps
+
+**1. Clone the repository**
+```bash
+git clone https://github.com/khadija-babar/DataBase_System-Project.git
+cd DataBase_System-Project
+```
+
+**2. Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+**3. Run the application**
+```bash
+python app.py
+```
+On Windows you can also use:
+```bash
+py app.py
+```
+
+> The database (`database.db`) is created automatically from `group13.sql` on first run. If you need fresh seed data, delete `database.db` and restart the app.
+
+### Demo Login Credentials
+
+| Role | Field | Value |
+|---|---|---|
+| Passenger | Username | demo |
+| Passenger | Password | demo123 |
+| Admin | Email | admin@brt.local |
+| Admin | Password | admin123 |
+| Driver | License Number | BRT-PWR-001 |
+| Driver | Password | driver123 |
 This is a complete Flask and SQLite web application built around the project ERD. It supports three separate roles:
 
 1. Admin
@@ -73,36 +146,6 @@ The database is implemented in `group13.sql` and follows the ERD entities:
 - Complaint
 - Notification
 
-The app creates `database.db` automatically from `group13.sql` when needed.
-
-## Run Locally
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Run the app:
-
-```bash
-python app.py
-```
-
-On Windows you can use:
-
-```powershell
-py app.py
-```
-
-Open:
-
-```text
-http://127.0.0.1:5000
-```
-
-If you changed the SQL file and need fresh seed data, delete `database.db` and restart the app.
-
 ## Demo Logins
 
 Passenger:
@@ -126,8 +169,3 @@ License Number: BRT-PWR-001
 Password: driver123
 ```
 
-## Notes
-
-- Backend APIs perform all database operations.
-- Passwords are stored as Werkzeug password hashes.
-- Frontend screens show user-friendly transportation features, not raw database internals.

@@ -12,7 +12,6 @@
         .icon { width: 72px; height: 72px; border-radius: 20px; display: grid; place-items: center; background: #e8f5e9; color: #0b3618; font-size: 32px; margin: 0 auto 18px; }
         h1 { color: #0b3618; text-align: center; margin-bottom: 8px; }
         .subtitle { color: #666; text-align: center; margin-bottom: 25px; }
-        .flash { padding: 12px; border-radius: 10px; margin-bottom: 12px; background: #ffebee; color: #c62828; }
         label { display: block; color: #0b3618; font-weight: 700; margin: 15px 0 8px; }
         input { width: 100%; padding: 14px; border-radius: 12px; border: 2px solid #e2e8e4; font-size: 15px; }
         input:focus { outline: none; border-color: #0b3618; }
@@ -26,19 +25,14 @@
         <div class="icon"><i class="fas fa-id-card"></i></div>
         <h1>Driver Login</h1>
         <p class="subtitle">Use your driver license number and password.</p>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% for category, message in messages %}
-                <div class="flash">{{ message }}</div>
-            {% endfor %}
-        {% endwith %}
-        <form method="POST" action="{{ url_for('driver_login') }}">
+        <form>
             <label>License Number</label>
             <input type="text" name="license_number" placeholder="BRT-PWR-001" required>
             <label>Password</label>
             <input type="password" name="password" placeholder="driver123" required>
             <button type="submit"><i class="fas fa-sign-in-alt"></i> Continue</button>
         </form>
-        <div class="back"><a href="{{ url_for('index') }}">Back to role selection</a></div>
+        <div class="back"><a href="index.html">Back to role selection</a></div>
     </div>
 </body>
 </html>
